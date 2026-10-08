@@ -6,6 +6,7 @@ import type { LlmProtocol } from '@shared/types'
 import { session } from 'electron'
 import { getProviderRequestOptions } from './llm-request-options'
 import { recordLlmStatus } from './llm-status'
+import { validateModelUrl } from './security-validation'
 
 export interface LlmCallConfig {
   protocol: LlmProtocol
@@ -72,6 +73,7 @@ function extractContentParts(content: unknown): string {
 }
 
 function parseBaseUrl(baseUrl: string): { url: string; pathname: string; disableVersion: boolean } {
+  validateModelUrl(baseUrl)
   let url = baseUrl.trim().replace(/\/+$/, '')
   const disableVersion = url.endsWith('#')
   if (disableVersion) url = url.slice(0, -1).replace(/\/+$/, '')
@@ -276,6 +278,7 @@ export async function chat(
       method: 'POST',
       headers: request.headers,
       body: JSON.stringify(request.body),
+      redirect: 'error',
       signal: controller.signal
     })
 

@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { ipcMain } from './secure-ipc'
 import { getCurrentDbPath, getDb } from '../db'
 import { dirname, join } from 'path'
 import { mkdirSync, writeFileSync, renameSync } from 'fs'

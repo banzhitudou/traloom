@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { ipcMain } from './secure-ipc'
 import { getDb } from '../db'
 import { getReaderVocabulary, type KnownVocabularyEntry } from '../services/reader-vocabulary'
 import type { VocabularySuggestion } from '@shared/types'

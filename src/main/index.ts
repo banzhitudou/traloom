@@ -1,7 +1,10 @@
 import { app, shell, BrowserWindow, screen } from 'electron'
 import { fitWindowToWorkArea } from './window-bounds'
 import { registerOcrResources } from './ocr-resources'
+import { isSafeExternalUrl } from './services/security-validation'
 import { join } from 'path'
+import { pathToFileURL } from 'url'
+import { trustRenderer } from './ipc/secure-ipc'
 import { appendFileSync, mkdirSync } from 'fs'
 
 // 注意：不要在模块顶层读取 app.isPackaged / app.xxx。
@@ -36,7 +39,7 @@ function createWindow(): void {
     title: 'Traloom',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      sandbox: true,
       contextIsolation: true,
       nodeIntegration: false
     }
@@ -92,15 +95,18 @@ function createWindow(): void {
   })
 
   window.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    if (isSafeExternalUrl(details.url)) void shell.openExternal(details.url).catch(() => {})
     return { action: 'deny' }
   })
 
   // 开发环境加载 dev server，生产加载打包文件
+  window.webContents.on('will-navigate', event => event.preventDefault())
   const isDev = !app.isPackaged
   if (isDev && process.env['ELECTRON_RENDERER_URL']) {
+    trustRenderer(window.webContents, process.env['ELECTRON_RENDERER_URL'])
     window.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
+    trustRenderer(window.webContents, pathToFileURL(join(__dirname, '../renderer/index.html')).href)
     window.loadFile(join(__dirname, '../renderer/index.html'))
   }
 }

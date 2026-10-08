@@ -133,8 +133,12 @@ export function registerParagraphHandlers(): void {
   })
 
   // 更新状态
-  ipcMain.handle('paragraph:updateStatus', async (_event, { id, status }) => {
+  ipcMain.handle('paragraph:updateStatus', async (_event, args) => {
+    if (!args || typeof args !== 'object') throw new Error('无效的翻译段参数。')
+    const { id, status } = args
+    if (!Number.isSafeInteger(id) || id <= 0 || typeof status !== 'string' || !['todo', 'doing', 'done', 'review'].includes(status)) throw new Error('无效的翻译段状态。')
     const db = getDb()
+    if (!db.prepare('SELECT 1 FROM paragraph WHERE id=?').get(id)) throw new Error('翻译段不存在。')
     db.prepare('UPDATE paragraph SET status = ? WHERE id = ?').run(status, id)
   })
 

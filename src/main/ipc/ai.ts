@@ -3,7 +3,7 @@
  * channel: ai:call
  * 流程：选配置 → 取上下文(术语+风格指南) → 构建 prompt → 调 LLM → 术语全表校验 → 入 log
  */
-import { ipcMain } from 'electron'
+import { ipcMain } from './secure-ipc'
 import { getDb } from '../db'
 import { getConfigForTask } from './llm'
 import { loggedChat } from '../services/logged-llm'

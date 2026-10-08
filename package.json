@@ -1,6 +1,6 @@
 {
   "name": "traloom",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Traloom - AI 辅助图书翻译工作台",
   "main": "out/main/index.js",
   "author": "",
@@ -28,8 +28,7 @@
     "lucide-react": "^1.51.0",
     "pdfjs-dist": "^4.10.38",
     "tesseract.js": "^7.0.0",
-    "tsx": "^4.22.4",
-    "xlsx": "^0.18.5"
+    "tsx": "^4.22.4"
   },
   "devDependencies": {
     "@electron-toolkit/preload": "^3.0.1",
@@ -39,18 +38,18 @@
     "@types/node": "^22.5.0",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
+    "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "^10.4.20",
-    "electron": "^33.4.11",
-    "electron-builder": "^25.0.0",
-    "electron-vite": "^2.3.0",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
     "postcss": "^8.4.41",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwindcss": "^3.4.10",
-    "typescript": "~5.5",
-    "vite": "^5.4.0",
-    "vitest": "^2.0.5",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.7",
+    "vitest": "^4.1.11",
     "zustand": "^4.5.5"
   }
 }

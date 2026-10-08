@@ -12,6 +12,12 @@ asarUnpack:
   - resources/**
   # better-sqlite3 是原生模块，需解包
   - '**/node_modules/better-sqlite3/**'
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
 win:
   target:
     - nsis

@@ -1,7 +1,8 @@
 /**
  * 译稿导出：纯中文/中英对照 × TXT/Markdown。
  */
-import { app, dialog, ipcMain } from 'electron'
+import { app, dialog } from 'electron'
+import { ipcMain } from './secure-ipc'
 import { writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { getDb, getCurrentDbPath } from '../db'

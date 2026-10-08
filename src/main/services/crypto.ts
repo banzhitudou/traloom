@@ -8,31 +8,26 @@ import { safeStorage } from 'electron'
 /** 加密明文 API Key，返回可存库的 Buffer */
 export function encryptApiKey(plain: string): Buffer {
   if (!plain) return Buffer.alloc(0)
-  if (safeStorage.isEncryptionAvailable()) {
+  if (secureStorageAvailable()) {
     return safeStorage.encryptString(plain)
   }
-  // 降级：safeStorage 不可用时（如 Linux 无 keyring），用机器级混淆。
-  // 非安全加密，仅防止肉眼可见。实际部署应确保 safeStorage 可用。
-  return Buffer.from(obfuscate(plain), 'base64')
+  throw new Error('系统安全密钥存储不可用，不能保存 API Key。请启用系统钥匙串后重试。')
 }
 
 /** 解密 API Key */
 export function decryptApiKey(enc: Buffer): string {
   if (!enc || enc.length === 0) return ''
   try {
-    if (safeStorage.isEncryptionAvailable()) {
+    if (secureStorageAvailable()) {
       return safeStorage.decryptString(enc)
     }
-    return deobfuscate(Buffer.from(enc).toString('base64'))
+    throw new Error('安全存储不可用。')
   } catch {
-    return ''
+    throw new Error('无法解密 API Key；请检查系统钥匙串或重新填写密钥。工程可能来自其他电脑或旧版不安全存储。')
   }
 }
 
-/** 简单可逆混淆（降级用，非安全） */
-function obfuscate(s: string): string {
-  return Buffer.from(s).toString('base64')
-}
-function deobfuscate(s: string): string {
-  return Buffer.from(s, 'base64').toString('utf-8')
+function secureStorageAvailable(): boolean {
+  return safeStorage.isEncryptionAvailable()
+    && !(process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text')
 }

@@ -3,12 +3,14 @@
  * channel: llm:list / llm:save / llm:test / llm:assign / llm:getAssignment
  * API Key 用 safeStorage 加解密。
  */
-import { ipcMain } from 'electron'
-import { getDb } from '../db'
+import { ipcMain } from './secure-ipc'
+import { getDb, getCurrentDbPath } from '../db'
 import { encryptApiKey, decryptApiKey } from '../services/crypto'
 import { chat, type LlmCallConfig } from '../services/llm-adapter'
 import { readLlmStatus } from '../services/llm-status'
 import type { LlmConfig, LlmStatus, AiTask } from '@shared/types'
+import { positiveId, sameModelEndpoint, validateModelConfig } from '../services/security-validation'
+import { authorizeModelEndpoint } from '../services/model-permissions'
 
 function normalizeProtocol(protocol: string): LlmConfig['protocol'] {
   if (protocol === 'openai_responses' || protocol === 'anthropic') return protocol
@@ -57,8 +59,12 @@ export async function getConfigForTask(task: AiTask): Promise<LlmCallConfig | nu
       | LlmConfigRow
       | undefined
     if (!def) return null
+    await authorizeModelEndpoint(getCurrentDbPath()!, def.base_url)
+    if (db !== getDb()) throw new Error('工程已切换，请重试。')
     return rowToCallConfig(def)
   }
+  await authorizeModelEndpoint(getCurrentDbPath()!, row.base_url)
+  if (db !== getDb()) throw new Error('工程已切换，请重试。')
   return rowToCallConfig(row)
 }
 
@@ -110,7 +116,14 @@ export function registerLlmHandlers(): void {
 
   // 保存（新增或更新）配置；apiKey 加密存储
   ipcMain.handle('llm:save', async (_event, config) => {
+    validateModelConfig(config)
     const db = getDb()
+    const saved = config.id ? db.prepare('SELECT * FROM llm_config WHERE id=?').get(config.id) as LlmConfigRow | undefined : undefined
+    if (config.id && !saved) throw new Error('模型配置不存在。')
+    if (saved?.api_key_enc && !config.apiKey && !sameModelEndpoint(config, rowToConfig(saved))) throw new Error('服务地址或协议已改变，请重新填写 API Key。')
+    await authorizeModelEndpoint(getCurrentDbPath()!, config.baseUrl)
+    if (db !== getDb()) throw new Error('工程已切换，请重试。')
+    return db.transaction(() => {
     const apiKeyEnc = config.apiKey ? encryptApiKey(config.apiKey) : null
     const protocol = normalizeProtocol(config.protocol)
     let configId: number
@@ -156,17 +169,20 @@ export function registerLlmHandlers(): void {
     return rowToConfig(
       db.prepare('SELECT * FROM llm_config WHERE id=?').get(configId) as LlmConfigRow
     )
+    })()
   })
 
   // 测试连通性
   ipcMain.handle('llm:test', async (_event, config) => {
+    validateModelConfig(config)
+    const db = getDb()
+    const savedConfig = config.id ? db.prepare('SELECT * FROM llm_config WHERE id=?').get(config.id) as LlmConfigRow | undefined : undefined
+    if (config.id && !savedConfig) throw new Error('模型配置不存在。')
+    if (savedConfig?.api_key_enc && !config.apiKey && !sameModelEndpoint(config, rowToConfig(savedConfig))) throw new Error('服务地址或协议已改变，请重新填写 API Key，不能复用旧密钥。')
+    await authorizeModelEndpoint(getCurrentDbPath()!, config.baseUrl)
+    if (db !== getDb()) throw new Error('工程已切换，请重试。')
     let apiKey = config.apiKey || ''
-    if (!apiKey && config.id) {
-      const saved = getDb().prepare('SELECT api_key_enc FROM llm_config WHERE id = ?').get(config.id) as
-        | { api_key_enc: Buffer | null }
-        | undefined
-      if (saved?.api_key_enc) apiKey = decryptApiKey(saved.api_key_enc)
-    }
+    if (!apiKey && savedConfig?.api_key_enc) apiKey = decryptApiKey(savedConfig.api_key_enc)
 
     const result = await chat(
       {
@@ -189,8 +205,13 @@ export function registerLlmHandlers(): void {
   })
 
   // 设置任务-模型分配
-  ipcMain.handle('llm:assign', async (_event, { task, configId }: { task: AiTask; configId: number }) => {
+  ipcMain.handle('llm:assign', async (_event, args: { task: AiTask; configId: number }) => {
+    if (!args || typeof args !== 'object') throw new Error('无效的模型任务。')
+    const { task, configId } = args
+    positiveId(configId)
+    if (!ASSIGNABLE_TASKS.includes(task)) throw new Error('无效的模型任务。')
     const db = getDb()
+    if (!db.prepare('SELECT 1 FROM llm_config WHERE id=?').get(configId)) throw new Error('模型配置不存在。')
     db.prepare(
       `INSERT INTO llm_assignment (task, config_id) VALUES (?, ?)
        ON CONFLICT(task) DO UPDATE SET config_id = excluded.config_id`

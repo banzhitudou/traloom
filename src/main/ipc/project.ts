@@ -3,63 +3,22 @@
  * channel: project:create / project:open / project:meta / project:pickFile
  * create：解析文件、建库、导入段落/术语/大辞典
  */
-import { ipcMain, dialog, app, BrowserWindow } from 'electron'
-import { basename, dirname, join, relative } from 'path'
+import { dialog, app, BrowserWindow } from 'electron'
+import { ipcMain } from './secure-ipc'
+import { basename, join } from 'path'
 import { existsSync, readFileSync, writeFileSync, rmSync } from 'fs'
 import { reserveNewProjectFile } from '../services/new-project-file'
 import { openDatabase, initSchema, getCurrentDbPath, getDb, closeDatabase } from '../db'
 import type { CreateProjectParams } from '../../shared/ipc-api'
 import { registerRecognitionHandlers } from './recognition'
 import { storeResource, readResource } from '../services/project-resources'
-import { scanMineruPackage } from '../services/mineru-package'
 import { loadGlossary, reloadGlossaryFromDatabase } from '../services/glossary-service'
 import { withRevisionContext } from '../services/revision-history'
 import { resolveProjectPath, storeProjectPath } from '../services/project-paths'
 import { validateProjectPdf } from '../services/project-transfer'
+import { authorizeProjectFile } from '../services/project-file-permissions'
 
 
-function importMineruDocuments(
-  db: ReturnType<typeof getDb>,
-  rootPath: string
-): number {
-  const preview = scanMineruPackage(rootPath)
-  const insertDocument = db.prepare(
-    `INSERT OR REPLACE INTO project_document (path, title, kind, content, updated_at)
-     VALUES (?, ?, 'mineru_markdown', ?, datetime('now'))`
-  )
-  const insertDocuments = db.transaction((files: string[]) => {
-    for (const filePath of files) {
-      const documentPath = relative(rootPath, filePath)
-      const title = basename(filePath).replace(/\.md$/i, '')
-      insertDocument.run(documentPath, title, readFileSync(filePath, 'utf-8'))
-    }
-  })
-  insertDocuments(preview.markdownFiles)
-
-  const insertMeta = db.prepare('INSERT OR REPLACE INTO project_meta (key, value) VALUES (?, ?)')
-  insertMeta.run('mineru_root_path', rootPath)
-  if (preview.primaryMarkdownPath) insertMeta.run('primary_markdown_path', preview.primaryMarkdownPath)
-  if (preview.modelJsonPath) insertMeta.run('model_json_path', preview.modelJsonPath)
-  return preview.markdownFiles.length
-}
-
-function backfillMineruDocuments(db: ReturnType<typeof getDb>): void {
-  const documentCount = (db.prepare('SELECT COUNT(*) AS n FROM project_document').get() as { n: number }).n
-  if (documentCount > 0) return
-  const rows = db.prepare(
-    "SELECT key, value FROM project_meta WHERE key IN ('mineru_root_path', 'json_path')"
-  ).all() as { key: string; value: string }[]
-  const meta = Object.fromEntries(rows.map((row) => [row.key, row.value]))
-  const projectPath = getCurrentDbPath()!
-  const rootPath = meta.mineru_root_path ? resolveProjectPath(projectPath, meta.mineru_root_path) : (meta.json_path ? dirname(resolveProjectPath(projectPath, meta.json_path)) : '')
-  if (!rootPath || !existsSync(rootPath)) return
-
-  try {
-    importMineruDocuments(db, rootPath)
-  } catch (error) {
-    console.warn('[project] MinerU Markdown 回填失败:', error)
-  }
-}
 
 
 export function registerProjectHandlers(): void {
@@ -173,7 +132,7 @@ export function registerProjectHandlers(): void {
     try {
       await validateProjectPdf(params.pdfPath)
       dbPath = reserveNewProjectFile(params.pdfPath)
-      openDatabase(dbPath)
+      openDatabase(dbPath, { create: true })
       initSchema()
       const db = getDb()
       storeResource(db, 'files/original.pdf', readFileSync(params.pdfPath))
@@ -207,7 +166,6 @@ export function registerProjectHandlers(): void {
     try {
       openDatabase(filePath)
       initSchema()
-      backfillMineruDocuments(getDb())
       reloadGlossaryFromDatabase(getDb())
       const title = (getDb().prepare("SELECT value FROM project_meta WHERE key = 'book_title'").get() as { value: string } | undefined)?.value
       rememberProject(filePath, title)
@@ -226,7 +184,6 @@ export function registerProjectHandlers(): void {
       if (!filePath || !existsSync(filePath)) return { ok: true, restored: false }
       openDatabase(filePath)
       initSchema()
-      backfillMineruDocuments(getDb())
       reloadGlossaryFromDatabase(getDb())
       const title = (getDb().prepare("SELECT value FROM project_meta WHERE key = 'book_title'").get() as { value: string } | undefined)?.value
       rememberProject(filePath, title)
@@ -282,7 +239,13 @@ export function registerProjectHandlers(): void {
         | { value: string }
         | undefined
       if (!row?.value) return null
-      const buf = readResource(db, row.value) ?? readFileSync(resolveProjectPath(getCurrentDbPath()!, row.value))
+      let buf = readResource(db, row.value)
+      if (!buf) {
+        const file = await authorizeProjectFile(getCurrentDbPath()!, row.value, '.pdf')
+        if (db !== getDb()) throw new Error('工程已切换，请重试。')
+        await validateProjectPdf(file)
+        buf = readFileSync(file)
+      }
       // ArrayBuffer 经 IPC 传给渲染进程（Electron 自动处理为 Uint8Array）
       return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
     } catch (e) {

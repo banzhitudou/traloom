@@ -1,4 +1,5 @@
-import { ipcMain as electronIpc, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+import { type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+import { ipcMain as electronIpc } from './secure-ipc'
 import { getDb, hasDb } from '../db'
 import { withRevisionContext } from '../services/revision-history'
 import type { RevisionSource } from '../../shared/revisions'

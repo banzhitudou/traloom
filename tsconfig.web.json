@@ -6,6 +6,7 @@
     "src/shared/**/*"
   ],
   "compilerOptions": {
+    "moduleResolution": "bundler",
     "composite": true,
     "baseUrl": ".",
     "paths": {

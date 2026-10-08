@@ -8,6 +8,7 @@ import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import type { Database as DatabaseType } from 'better-sqlite3'
 import { initializeRevisionHistory, configureRevisionFunctions } from '../services/revision-history'
+import { validateExistingProject } from '../services/project-validation'
 
 let db: DatabaseType | null = null
 let currentDbPath: string | null = null
@@ -16,16 +17,20 @@ let currentDbPath: string | null = null
  * 创建/打开一个 .twproj 数据库文件。
  * @param dbPath 数据库文件路径（xxx.twproj）
  */
-export function openDatabase(dbPath: string): DatabaseType {
+export function openDatabase(dbPath: string, options: { create?: boolean } = {}): DatabaseType {
+  if (!options.create) validateExistingProject(dbPath)
+  const next = new Database(dbPath, { fileMustExist: true })
+  try {
+    next.pragma('journal_mode = WAL')
+    next.pragma('foreign_keys = ON')
+    next.pragma('recursive_triggers = ON')
+    configureRevisionFunctions(next)
+  } catch (error) { next.close(); throw error }
   if (db) {
     db.close()
   }
-  db = new Database(dbPath)
+  db = next
   currentDbPath = dbPath
-  db.pragma('journal_mode = WAL')
-  db.pragma('foreign_keys = ON')
-  db.pragma('recursive_triggers = ON')
-  configureRevisionFunctions(db)
   return db
 }
 

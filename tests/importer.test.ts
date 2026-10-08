@@ -6,13 +6,10 @@ import { describe, it, expect } from 'vitest'
 import { writeFileSync, mkdtempSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import * as XLSX from 'xlsx'
 import {
   parseContentJson,
   mergeModelCoordinates,
-  parseGlossaryMd,
-  parseNameDict,
-  parsePlaceDict
+  parseGlossaryMd
 } from '../src/main/services/importer'
 
 function tmpFile(name: string, content: string): string {
@@ -150,31 +147,5 @@ describe('parseGlossaryMd', () => {
     const result = parseGlossaryMd(tmpFile('t.md', md))
     expect(result).toHaveLength(1)
     expect(result[0].en).toBe('taco')
-  })
-})
-
-describe('parseNameDict', () => {
-  it('跳过部分标题行和字母分隔行，只留有效译名', () => {
-    const file = tmpFile('names.xlsx', '')
-    const book = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
-      [0, '第一部分', '', '标题'], [1, 'A', '', 'A'],
-      [2, 'Demo', '示例', '德莫'], [3, '', '', '无姓名']
-    ]), 'Names')
-    XLSX.writeFile(book, file)
-    expect(parseNameDict(file)).toEqual([{ en: 'Demo', zh: '德莫', source: '示例' }])
-  })
-})
-
-describe('parsePlaceDict', () => {
-  it('跳过表头 Column1 行', () => {
-    const file = tmpFile('places.xlsx', '')
-    const book = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
-      ['Column1', 'Column2', 'Column3', 'Column4'],
-      [1, 'Example Bay', '示例', '示例湾'], [2, 'B', '', 'B']
-    ]), 'Places')
-    XLSX.writeFile(book, file)
-    expect(parsePlaceDict(file)).toEqual([{ en: 'Example Bay', zh: '示例湾', source: '示例' }])
   })
 })

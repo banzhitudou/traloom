@@ -5,10 +5,10 @@
  */
 import { recordedIpc as ipcMain } from './recorded-ipc'
 import { getDb, getCurrentDbPath } from '../db'
-import { resolveProjectPath } from '../services/project-paths'
 import { parseDraftMd } from '../services/draft-parser'
 import { similarityMatch, alignStats } from '../services/aligner'
 import type { AlignResult } from '@shared/types'
+import { authorizeProjectFile } from '../services/project-file-permissions'
 
 interface ParagraphRow {
   id: number
@@ -55,7 +55,9 @@ export function registerAlignHandlers(): void {
     }
 
     // 解析译稿
-    const drafts = parseDraftMd(resolveProjectPath(getCurrentDbPath()!, draftRow.value))
+    const draftPath = await authorizeProjectFile(getCurrentDbPath()!, draftRow.value, '.md')
+    if (db !== getDb()) throw new Error('工程已切换，请重试。')
+    const drafts = parseDraftMd(draftPath)
 
     // 读段落（英文）
     const rows = db.prepare(
@@ -79,6 +81,13 @@ export function registerAlignHandlers(): void {
   // 确认对齐结果入库：自动对齐只代表已有译文，不代表译者已经人工确认。
   ipcMain.handle('align:commit', async (_event, adjustments: AlignResult[]) => {
     const db = getDb()
+    if (!Array.isArray(adjustments) || adjustments.length > 100000 || adjustments.some(a => !a || typeof a !== 'object'
+      || !Number.isSafeInteger(a.jsonId) || a.jsonId < -1 || typeof a.zh !== 'string' || a.zh.length > 1000000
+      || !['aligned', 'pending'].includes(a.status))) throw new Error('无效的译稿对齐数据。')
+    for (const entry of adjustments.filter(a => a.jsonId >= 0 && ['aligned', 'pending'].includes(a.status))) {
+      if (!db.prepare('SELECT 1 FROM paragraph WHERE id=?').get(entry.jsonId)) throw new Error('对齐目标段落不存在。')
+    }
+    return db.transaction(() => {
     const updateTranslation = db.prepare(
       'UPDATE paragraph SET zh_text = ?, status = ? WHERE id = ?'
     )
@@ -100,5 +109,6 @@ export function registerAlignHandlers(): void {
 
     const ready = (db.prepare("SELECT COUNT(*) AS n FROM paragraph WHERE status = 'doing'").get() as { n: number }).n
     return { ok: true, doneCount: ready }
+    })()
   })
 }

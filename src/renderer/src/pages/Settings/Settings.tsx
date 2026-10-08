@@ -101,10 +101,13 @@ export default function Settings({ onBack }: Props) {
   const save = async () => {
     if (!editing || !editing.name || !editing.model) return
     setBusy(true)
-    await api.saveLlmConfig(editing)
-    setBusy(false)
-    setEditing(null)
-    refresh()
+    try {
+      await api.saveLlmConfig(editing)
+      setEditing(null)
+      refresh()
+    } catch (error) {
+      setTestMsg({ ok: false, text: error instanceof Error ? error.message : String(error) })
+    } finally { setBusy(false) }
   }
 
   const test = async () => {
@@ -112,9 +115,12 @@ export default function Settings({ onBack }: Props) {
     setBusy(true)
     setTestMsg(null)
     setTestMsgCopied(false)
-    const r = await api.testLlmConnection(editing)
-    setBusy(false)
-    setTestMsg({ ok: r.ok, text: r.ok ? '✅ 连接成功' : `❌ ${r.error}` })
+    try {
+      const r = await api.testLlmConnection(editing)
+      setTestMsg({ ok: r.ok, text: r.ok ? '连接成功' : String(r.error) })
+    } catch (error) {
+      setTestMsg({ ok: false, text: error instanceof Error ? error.message : String(error) })
+    } finally { setBusy(false) }
   }
 
   const copyTestMessage = async () => {

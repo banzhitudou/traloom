@@ -1,7 +1,10 @@
 import { readFileSync } from 'fs'
+import { randomBytes } from 'crypto'
 import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+
+const devNonce = randomBytes(18).toString('base64')
 
 export default defineConfig({
   main: {
@@ -41,6 +44,7 @@ export default defineConfig({
   },
   renderer: {
     root: 'src/renderer',
+    html: { cspNonce: devNonce },
     build: {
       rollupOptions: {
         input: { index: resolve(__dirname, 'src/renderer/index.html') }
@@ -52,6 +56,16 @@ export default defineConfig({
         '@shared': resolve(__dirname, 'src/shared')
       }
     },
-    plugins: [react()]
+    plugins: [react(), {
+      name: 'development-csp',
+      apply: 'serve',
+      transformIndexHtml: {
+        order: 'post',
+        handler(html) {
+          return html.replace("script-src 'self'", `script-src 'self' 'nonce-${devNonce}'`)
+            .replace("connect-src 'self'", "connect-src 'self' ws://localhost:* ws://127.0.0.1:*")
+        }
+      }
+    }]
   }
 })
