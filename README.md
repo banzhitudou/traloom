@@ -39,7 +39,7 @@
 
 ## 开发
 
-需要 Node.js 22 或更新的受支持版本，以及 npm。首次安装会为 Electron 构建 SQLite 原生模块；部分平台需要本机编译工具。
+需要 Node.js 22.12 或更新的受支持版本（推荐 Node.js 24 LTS），以及 npm。首次安装会为 Electron 构建 SQLite 原生模块；部分平台需要本机编译工具。
 
 ```sh
 npm ci
