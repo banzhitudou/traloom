@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 译者长时间使用，护眼中性色 */
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+}
+
+body {
+  margin: 0;
+  user-select: none;            /* 默认禁选，编辑区单独开启 */
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 译文编辑区可选中 */
+input, textarea, [contenteditable], .selectable {
+  user-select: text;
+}
+
+/* 术语高亮（UI 线框图：英文区术语下划线） */
+.term-highlight {
+  background-color: #fef3c7;
+  border-bottom: 1px dashed #d97706;
+  cursor: help;
+}

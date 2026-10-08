@@ -1,0 +1,15 @@
+name: Feature request / 功能建议
+description: Describe a translation workflow that could be improved.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Workflow and problem / 使用场景与问题
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed improvement / 建议的改进
+    validations:
+      required: true

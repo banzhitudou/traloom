@@ -1,0 +1,26 @@
+appId: com.yutian.translationworkbench
+productName: Traloom
+directories:
+  buildResources: resources
+files:
+  - out/**
+  - resources/**
+  - package.json
+  - LICENSE
+  - THIRD_PARTY_NOTICES.md
+asarUnpack:
+  - resources/**
+  # better-sqlite3 是原生模块，需解包
+  - '**/node_modules/better-sqlite3/**'
+win:
+  target:
+    - nsis
+  # TODO(M4): 代码签名证书
+mac:
+  target:
+    - dmg
+  category: public.app-category.productivity
+  # TODO(M4): 代码签名 + 公证
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

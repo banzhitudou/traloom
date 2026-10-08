@@ -1,0 +1,25 @@
+node_modules
+out
+dist
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+# 本地项目数据（开发时生成的 .twproj）
+*.twproj
+*.twproj-*
+*.twproj.*
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+tmp/
+coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo
+electron.vite.config.*.mjs
+__pycache__/
+*.pyc

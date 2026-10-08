@@ -1,0 +1,34 @@
+name: Bug report / 问题反馈
+description: Report a reproducible problem using non-private sample data.
+body:
+  - type: markdown
+    attributes:
+      value: Do not upload manuscripts, project files, API keys, or private logs. 请勿上传书稿、工程文件、密钥或私人日志。
+  - type: input
+    id: environment
+    attributes:
+      label: Version and operating system / 版本与操作系统
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce / 复现步骤
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior / 预期表现
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior / 实际表现
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted screenshots or synthetic sample / 脱敏截图或自制示例
