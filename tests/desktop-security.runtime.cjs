@@ -37,7 +37,7 @@ app.whenReady().then(async () => {
   const recognized = await window.webContents.executeJavaScript(`import(${JSON.stringify(pathToFileURL(bundle).href)}).then(module => module.recognizeFixture(${JSON.stringify(fixture)}))`)
   assert.match(recognized, /A small garden/i)
   console.log('Actual offline OCR recognition passed under renderer CSP:', recognized.trim())
-  const content = '0 0 1 rg 10 10 30 30 re f\nBT /F1 16 Tf 10 60 Td (A small garden.) Tj ET'
+  const content = '0 0 1 rg 10 10 30 30 re f\n0 0 0 rg\nBT /F1 16 Tf 10 60 Td (A small garden.) Tj ET\nBT /F1 10 Tf 0 1 -1 0 170 10 Tm (Sideways text) Tj ET'
   const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
     '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
     `<< /Length ${Buffer.byteLength(content)} >>\nstream\n${content}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>']
@@ -50,6 +50,10 @@ app.whenReady().then(async () => {
   const rendered = await window.webContents.executeJavaScript(`import(${JSON.stringify(pathToFileURL(bundle).href)}).then(module => module.renderPdfFixture(${JSON.stringify(Array.from(Buffer.from(pdf)))}, ${JSON.stringify(pdfWorker)}))`)
   assert.match(rendered.text, /A small garden/)
   assert.ok(rendered.blue > 500)
+  const sideways = rendered.blocks.find(block => block.text === 'Sideways text')
+  assert.ok(sideways, 'Rotated text must remain intact')
+  assert.ok(sideways.box.height * 100 > sideways.box.width * 200, 'Rotated text needs a vertical box')
+  assert.ok(rendered.inkCoverage > .98, 'Text boxes must cover rendered horizontal and rotated glyphs')
   console.log('Actual PDF worker, text extraction and nonblank canvas passed:', rendered)
   console.log('Sandboxed renderer, preload IPC, CSP OCR resource and interface mount passed.', result)
   window.destroy()

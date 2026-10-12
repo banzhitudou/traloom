@@ -42,12 +42,8 @@ export default function PdfRecognition({ onPage }: { onPage: () => Promise<void>
         const page = await doc.getPage(index + 1)
         const viewport = page.getViewport({ scale: 1 })
         const text = await page.getTextContent()
-        // Transform positions through the viewport, including rotated PDF pages.
-        const items = text.items.filter((i): i is TextItem => 'str' in i).map(i => {
-          const matrix = pdfjs.Util.transform(viewport.transform, i.transform)
-          return { ...i, transform: [matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], viewport.height - matrix[5]], width: i.width }
-        })
-        let blocks = groupPdfText(items as PdfTextItem[], viewport.width, viewport.height)
+        const items = text.items.filter((i): i is TextItem => 'str' in i)
+        let blocks = groupPdfText(items as PdfTextItem[], viewport.width, viewport.height, viewport.transform)
         let method = 'PDF text layer'
         if (!blocks.length) {
           method = 'Tesseract (offline English)'

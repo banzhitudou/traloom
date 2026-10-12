@@ -20,9 +20,13 @@ Traloom (pronounced tra-LOOM) is a local desktop workspace for translating books
 
 ## Status And Limitations
 
-This is an early version, primarily verified on Apple Silicon macOS. The interface is primarily Simplified Chinese. Windows build configuration exists, but release packages need separate validation. No official download has been published yet.
+This is an early version, primarily verified on Apple Silicon macOS. The interface is primarily Simplified Chinese. Windows build configuration exists, but release packages need separate validation. Mac preview installers are available from [GitHub Releases](https://github.com/banzhitudou/traloom/releases). They are ad-hoc signed, not Apple Developer ID signed or notarized.
 
 The bundled OCR model currently supports English only. Other languages can be extracted from PDFs with a text layer. Complex layouts, OCR results, and AI output require human review.
+
+## Demo PDFs
+
+The [0.2.4 release](https://github.com/banzhitudou/traloom/releases/tag/v0.2.4) includes single-page and spread editions of the original AI-assisted demonstration book *A World of Cats*. Download either PDF and create a new project to try text extraction, complex layouts, rotated text, and manual OCR regions. No project data or model configuration is included. See the [demo guide](docs/demo-pdfs.md).
 
 ## Quick Start
 

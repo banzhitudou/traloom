@@ -21,7 +21,7 @@
 
 ## 开始使用
 
-当前版本为早期版本，主要在 Apple Silicon macOS 上验证，界面以简体中文为主。Windows 提供构建配置，但发行包尚需独立验证。目前没有已发布的正式下载链接。
+当前版本为早期版本，主要在 Apple Silicon macOS 上验证，界面以简体中文为主。Windows 提供构建配置，但发行包尚需独立验证。Mac 预览版安装包见 [GitHub Releases](https://github.com/banzhitudou/traloom/releases)。安装包使用临时签名，尚未经过 Apple Developer ID 签名及公证。
 
 1. 按下方开发说明启动，或自行构建应用。
 2. 新建项目并选择 PDF。工程会生成在 PDF 所在文件夹，不覆盖原书。
@@ -30,6 +30,10 @@
 5. 完成审校后，在“导出”中选择格式、页面范围和备注选项。
 
 有文字层的 PDF 可提取其他语言；随应用内置的 OCR 模型目前仅支持英文。扫描件、复杂版面和 AI 译文均需要人工核对。
+
+## 示例 PDF
+
+[0.2.4 Release](https://github.com/banzhitudou/traloom/releases/tag/v0.2.4) 提供原创演示资料《A World of Cats》的单页版和跨页版，可下载后用“新建项目”打开，体验文字提取、复杂版面、旋转文字和手工补录。附件不包含翻译工程或模型配置。使用方法与限制见 [示例说明](docs/demo-pdfs.md)。
 
 ## 数据与隐私
 
