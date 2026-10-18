@@ -1,8 +1,8 @@
 import type { RecognizedBlock } from '@shared/ipc-api'
 
-export interface PdfTextItem { str: string; transform: number[]; width: number; height: number; hasEOL?: boolean }
+export interface PdfTextItem { str: string; transform: number[]; width: number; height: number; hasEOL?: boolean; fontName?: string; needsOcr?: boolean }
 
-export function groupPdfText(items: PdfTextItem[], width: number, height: number, viewport = [1, 0, 0, -1, 0, height]): RecognizedBlock[] {
+export function groupPdfText(items: PdfTextItem[], width: number, height: number, viewport = [1, 0, 0, -1, 0, height], japanese = false): (RecognizedBlock & { needsOcr?: boolean })[] {
   if (width <= 0 || height <= 0) return []
   const directions = new Map<string, { ux: number; uy: number; items: PdfTextItem[] }>()
   const [va, vb, vc, vd, ve, vf] = viewport
@@ -24,28 +24,28 @@ export function groupPdfText(items: PdfTextItem[], width: number, height: number
     direction.items.push({ ...item, width: item.width * length / Math.max(Math.hypot(a, b), 1e-8), height: fontHeight,
       transform: [fontHeight, 0, 0, fontHeight, px * ux + py * uy, px * uy - py * ux] })
   }
-  const blocks: RecognizedBlock[] = []
+  const blocks: (RecognizedBlock & { needsOcr?: boolean })[] = []
   for (const { ux, uy, items: localItems } of directions.values()) {
     const readingWidth = Math.abs(ux) * width + Math.abs(uy) * height
     const readingHeight = Math.abs(uy) * width + Math.abs(ux) * height
-    for (const bounds of groupReadingDirection(localItems, readingWidth, readingHeight)) {
+    for (const bounds of groupReadingDirection(localItems, readingWidth, readingHeight, japanese)) {
       const corners = [[bounds.x, bounds.y], [bounds.right, bounds.y], [bounds.x, bounds.bottom], [bounds.right, bounds.bottom]]
         .map(([x, y]) => [x * ux - y * uy, x * uy + y * ux])
       const left = Math.max(0, Math.min(width, Math.min(...corners.map(p => p[0]))))
       const top = Math.max(0, Math.min(height, Math.min(...corners.map(p => p[1]))))
       const right = Math.max(left, Math.min(width, Math.max(...corners.map(p => p[0]))))
       const bottom = Math.max(top, Math.min(height, Math.max(...corners.map(p => p[1]))))
-      if (bounds.text && right > left && bottom > top) blocks.push({ text: bounds.text, box: { left: left / width, top: top / height, width: (right - left) / width, height: (bottom - top) / height } })
+      if (bounds.text && right > left && bottom > top) blocks.push({ text: bounds.text, ...(bounds.needsOcr ? { needsOcr: true } : {}), box: { left: left / width, top: top / height, width: (right - left) / width, height: (bottom - top) / height } })
     }
   }
   return blocks.sort((a, b) => a.box.top - b.box.top || a.box.left - b.box.left)
 }
 
-type Bounds = { text: string; x: number; y: number; right: number; bottom: number }
+type Bounds = { text: string; x: number; y: number; right: number; bottom: number; needsOcr?: boolean }
 
-function groupReadingDirection(items: PdfTextItem[], width: number, height: number): Bounds[] {
+function groupReadingDirection(items: PdfTextItem[], width: number, height: number, japanese: boolean): Bounds[] {
   const blocks: Bounds[] = []
-  let line: { text: string; x: number; y: number; right: number; bottom: number } | null = null
+  let line: Bounds | null = null
   const finish = () => {
     if (!line) return
     blocks.push({ ...line, text: line.text.trim() })
@@ -59,7 +59,8 @@ function groupReadingDirection(items: PdfTextItem[], width: number, height: numb
     // Text transforms locate the baseline; include room for descending glyphs.
     const bottom = y + fontHeight * 1.2
     if (!line) line = { text: item.str, x, y, right: x + item.width, bottom }
-    else { line.text += (/\s$/.test(line.text) || /^\s/.test(item.str) ? '' : ' ') + item.str; line.right = Math.max(line.right, x + item.width); line.bottom = Math.max(line.bottom, bottom) }
+    else { line.text += (japanese || /\s$/.test(line.text) || /^\s/.test(item.str) ? '' : ' ') + item.str; line.right = Math.max(line.right, x + item.width); line.bottom = Math.max(line.bottom, bottom) }
+    if (item.needsOcr) line.needsOcr = true
     if (item.hasEOL) finish()
   }
   finish()
@@ -76,6 +77,7 @@ function groupReadingDirection(items: PdfTextItem[], width: number, height: numb
       previous.x = Math.min(previous.x, block.x)
       previous.right = Math.max(previous.right, block.right)
       previous.bottom = Math.max(previous.bottom, block.bottom)
+      if (block.needsOcr) previous.needsOcr = true
     } else groups.push({ block, lineHeight: block.bottom - block.y })
   }
   return groups.map(g => g.block)

@@ -19,6 +19,14 @@ const messages = [
 ]
 
 describe('LLM protocol request builders', () => {
+  it('maps image input for all supported protocols', () => {
+    const image = 'data:image/png;base64,YWJj'
+    const input = [{role:'user' as const,content:[{type:'text' as const,text:'OCR'},{type:'image_url' as const,image_url:{url:image}}]}]
+    const config = {...baseConfig,baseUrl:'https://example.com/v1'}
+    expect(buildLlmRequest({...config,protocol:'openai_chat'},input).body).toMatchObject({messages:input})
+    expect(buildLlmRequest({...config,protocol:'openai_responses'},input).body).toMatchObject({input:[{role:'user',content:[{type:'input_text',text:'OCR'},{type:'input_image',image_url:image}]}]})
+    expect(buildLlmRequest({...config,protocol:'anthropic'},input).body).toMatchObject({messages:[{role:'user',content:[{type:'text',text:'OCR'},{type:'image',source:{type:'base64',media_type:'image/png',data:'YWJj'}}]}]})
+  })
   it('builds a Chat Completions request', () => {
     const request = buildLlmRequest({
       ...baseConfig,

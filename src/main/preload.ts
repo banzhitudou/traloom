@@ -7,6 +7,16 @@ import { contextBridge, ipcRenderer } from 'electron'
  */
 
 const api = {
+  getOcrSettings: () => ipcRenderer.invoke('ocr:settings'),
+  saveOcrSettings: (settings) => ipcRenderer.invoke('ocr:saveSettings', settings),
+  planBatch: (scope) => ipcRenderer.invoke('batch:plan', scope),
+  listBatchJobs: () => ipcRenderer.invoke('batch:list'),
+  getBatchJob: (id) => ipcRenderer.invoke('batch:get', id),
+  createBatchJob: (scope, sampleIds) => ipcRenderer.invoke('batch:create', scope, sampleIds),
+  startBatchJob: (id, limit, autoApply) => ipcRenderer.invoke('batch:start', id, limit, autoApply),
+  decideBatch: (id, ids, adopt) => ipcRenderer.invoke('batch:decide', id, ids, adopt),
+  controlBatch: (id, action) => ipcRenderer.invoke('batch:control', id, action),
+  dismissBatchHint: () => ipcRenderer.invoke('batch:dismissHint'),
   // ── 项目 ──
   createProject: (params) => ipcRenderer.invoke('project:create', params),
   openProject: (filePath: string) => ipcRenderer.invoke('project:open', filePath),
@@ -17,6 +27,20 @@ const api = {
   getProjectMeta: () => ipcRenderer.invoke('project:meta'),
   updateProjectInfo: (info) => ipcRenderer.invoke('project:updateInfo', info),
   getRecognitionState: () => ipcRenderer.invoke('project:recognitionState'),
+  recognizeVision: (input) => ipcRenderer.invoke('ocr:vision', input),
+  planVisionPages: (total,from,to) => ipcRenderer.invoke('ocr:pagePlan',total,from,to),
+  listVisionPages: () => ipcRenderer.invoke('ocr:pageList'),
+  getVisionPage: (id) => ipcRenderer.invoke('ocr:pageGet',id),
+  readVisionPageImage: (id) => ipcRenderer.invoke('ocr:pageImage',id),
+  approveVisionPages: (path,total,pages,maxTokens) => ipcRenderer.invoke('ocr:pageApprove',path,total,pages,maxTokens),
+  runVisionPage: (token,pageIdx,dataUrl,anchors) => ipcRenderer.invoke('ocr:pageRun',token,pageIdx,dataUrl,anchors),
+  adoptVisionPage: (id,blocks) => ipcRenderer.invoke('ocr:pageAdopt',id,blocks),
+  discardVisionPage: (id) => ipcRenderer.invoke('ocr:pageDiscard',id),
+  approveVisionBatch: (id,limit) => ipcRenderer.invoke('batch:visionApprove',id,limit),
+  stepVisionBatch: (token,input) => ipcRenderer.invoke('batch:visionStep',token,input),
+  getOriginalRecognition: (id) => ipcRenderer.invoke('paragraph:originalRecognition', id),
+  restoreRecognition: (from, to) => ipcRenderer.invoke('batch:restoreRecognition', from, to),
+  setRecognitionPaused: (projectPath, paused) => ipcRenderer.invoke('project:recognitionPause', projectPath, paused),
   initializeRecognition: (projectPath, total) => ipcRenderer.invoke('project:recognitionInit', projectPath, total),
   saveRecognizedPage: (projectPath, pageIdx, blocks, method) => ipcRenderer.invoke('project:recognitionPage', projectPath, pageIdx, blocks, method),
   getReferenceSettings: () => ipcRenderer.invoke('ai:referenceSettings'),
@@ -99,7 +123,7 @@ const api = {
 
   // ── LLM 配置 ──
   listLlmConfigs: () => ipcRenderer.invoke('llm:list'),
-  getLlmStatus: () => ipcRenderer.invoke('llm:status'),
+  getLlmStatus: (task) => ipcRenderer.invoke('llm:status', task),
   saveLlmConfig: (config) => ipcRenderer.invoke('llm:save', config),
   testLlmConnection: (config) => ipcRenderer.invoke('llm:test', config),
   getLlmAssignments: () => ipcRenderer.invoke('llm:assignments'),

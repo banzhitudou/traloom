@@ -79,7 +79,7 @@ function rowToCallConfig(r: LlmConfigRow): LlmCallConfig {
   }
 }
 
-const ASSIGNABLE_TASKS: AiTask[] = ['whole_para']
+const ASSIGNABLE_TASKS: AiTask[] = ['whole_para', 'ocr_line_breaks', 'vision_ocr']
 
 function assignAsDefault(db: ReturnType<typeof getDb>, configId: number): void {
   db.prepare('UPDATE llm_config SET is_default = 0').run()
@@ -99,13 +99,14 @@ export function registerLlmHandlers(): void {
     return rows.map(rowToConfig)
   })
 
-  ipcMain.handle('llm:status', async (): Promise<LlmStatus> => {
+  ipcMain.handle('llm:status', async (_event, task: AiTask = 'whole_para'): Promise<LlmStatus> => {
+    if (!ASSIGNABLE_TASKS.includes(task)) throw new Error('无效的模型用途。')
     const db = getDb()
     const row = db.prepare(
       `SELECT c.* FROM llm_assignment a
        JOIN llm_config c ON a.config_id = c.id
-       WHERE a.task = 'whole_para'`
-    ).get() as LlmConfigRow | undefined
+       WHERE a.task = ?`
+    ).get(task) as LlmConfigRow | undefined
     const active = row ?? db.prepare(
       'SELECT * FROM llm_config WHERE is_default = 1 LIMIT 1'
     ).get() as LlmConfigRow | undefined

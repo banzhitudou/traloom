@@ -11,6 +11,9 @@ import { registerLlmHandlers } from './llm'
 import { registerExportHandlers } from './export'
 import { registerVocabularyHandlers } from './vocabulary'
 import { registerRevisionHandlers } from './revisions'
+import { registerBatchHandlers } from './batch'
+import { registerVisionOcrHandlers } from './vision-ocr'
+import { registerVisionPageHandlers } from './vision-page'
 
 export async function registerAll(): Promise<void> {
   registerProjectHandlers()
@@ -21,5 +24,8 @@ export async function registerAll(): Promise<void> {
   registerExportHandlers()
   registerVocabularyHandlers()
   registerRevisionHandlers()
+  registerBatchHandlers()
+  registerVisionOcrHandlers()
+  registerVisionPageHandlers()
   console.log('[ipc] 所有 handler 已注册')
 }

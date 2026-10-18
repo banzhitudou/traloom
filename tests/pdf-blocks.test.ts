@@ -11,6 +11,11 @@ describe('PDF text layer blocks', () => {
     expect(blocks.some(b => b.text === 'Other column')).toBe(true)
   })
   it('produces no blocks for blank pages', () => { expect(groupPdfText([],600,800)).toEqual([]) })
+  it('does not insert English word spaces between Japanese text-layer fragments', () => {
+    const first = { ...item('日本', 30,700,24), hasEOL: false }
+    const [block] = groupPdfText([first,item('語',54,700,12)],600,800,[1,0,0,-1,0,800],true)
+    expect(block.text).toBe('日本語')
+  })
   it.each([90, 180, 270])('follows text rotated by %i degrees and joins its lines', degrees => {
     const angle = degrees * Math.PI / 180
     const u = [Math.cos(angle), Math.sin(angle)]

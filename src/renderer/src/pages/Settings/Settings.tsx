@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { api } from '@renderer/lib/ipc'
 import ReferenceSettings from '../Workbench/ReferenceSettings'
+import OcrSettings from '../Workbench/OcrSettings'
 import type { LlmConfig, AiTask } from '@shared/types'
+import { VISION_OCR_NOTICE } from '@shared/vision-ocr'
 
 interface Props {
   onBack: () => void
@@ -51,6 +53,8 @@ const PROTOCOLS: Record<LlmConfig['protocol'], { label: string; baseUrl: string;
 }
 
 const TASK_LABELS: Record<AiTask, string> = {
+  vision_ocr: 'AI 视觉识别（测试）',
+  ocr_line_breaks: 'AI 整理断行（单段与批量）',
   whole_para: '整段参考译文',
   hard_sentence: '难句分析',
   hard_word: '难词解释',
@@ -58,14 +62,14 @@ const TASK_LABELS: Record<AiTask, string> = {
   align: '对齐判定'
 }
 
-const TASKS: AiTask[] = ['whole_para']
+const TASKS: AiTask[] = ['whole_para', 'ocr_line_breaks', 'vision_ocr']
 
 /**
  * LLM 设置页（模型配置 + 用途分配）。
  * 见《UI线框图》第 6 节。
  */
 export default function Settings({ onBack }: Props) {
-  const [mode, setMode] = useState<'models' | 'reference'>('models')
+  const [mode, setMode] = useState<'models' | 'reference' | 'ocr'>('models')
   const [configs, setConfigs] = useState<LlmConfig[]>([])
   const [editing, setEditing] = useState<EditState | null>(null)
   const [busy, setBusy] = useState(false)
@@ -143,10 +147,11 @@ export default function Settings({ onBack }: Props) {
         <h1 className="ml-4 text-lg font-medium">设置</h1>
       </header>
       <nav aria-label="设置分类" className="flex shrink-0 gap-2 border-b bg-white px-6 text-sm">{([
-        ['models', '模型配置'], ['reference', '译文参考']
+        ['models', '模型配置'], ['reference', '译文参考'], ['ocr', '文字识别']
       ] as const).map(([id, title]) => <button type="button" key={id} aria-pressed={mode === id} onClick={() => setMode(id)} className={`border-b-2 px-3 py-3 ${mode === id ? 'border-blue-600 text-blue-700' : 'border-transparent text-neutral-600'}`}>{title}</button>)}</nav>
 
       {mode === 'reference' && <div className="flex-1 overflow-auto p-6"><ReferenceSettings /></div>}
+      {mode === 'ocr' && <div className="flex-1 overflow-auto p-6"><OcrSettings /></div>}
 
       <div className={mode === 'models' ? 'flex-1 overflow-auto p-6' : 'hidden'}>
         {/* 配置列表 */}
@@ -198,6 +203,17 @@ export default function Settings({ onBack }: Props) {
         </div>
 
         {/* 用途分配 */}
+        <p role="note" className="mb-3 border-l-2 border-amber-500 bg-amber-50 p-3 text-sm text-amber-800">{VISION_OCR_NOTICE}</p>
+        <div className="mb-5 flex flex-wrap items-center gap-3 text-sm"><button type="button" disabled={busy} className="rounded border px-3 py-2 disabled:opacity-40" onClick={() => { void (async () => {
+          setBusy(true); setTestMsg(null)
+          try {
+            const canvas = document.createElement('canvas'); canvas.width = 700; canvas.height = 160
+            const ctx = canvas.getContext('2d')!; ctx.fillStyle='white';ctx.fillRect(0,0,700,160);ctx.fillStyle='black';ctx.font='48px sans-serif';ctx.fillText('Traloom 2468',40,100)
+            const result = await api.recognizeVision({pageIdx:0,rotation:0,test:true,crops:[{dataUrl:canvas.toDataURL('image/png'),box:{left:0,top:0,width:1,height:1}}]})
+            setTestMsg({ok:!!result.ok && !!result.text?.includes('2468'),text:result.ok ? `视觉测试返回：${result.text}` : result.error || '视觉测试失败'})
+          } catch(error) { setTestMsg({ok:false,text:String(error)}) }
+          finally {setBusy(false)}
+        })() }}>测试图片识别</button><span className="text-neutral-500">使用“AI 视觉识别”分配的模型，仅上传软件生成的测试图，可能收费。</span>{testMsg && !editing && <span role="status" className={testMsg.ok ? 'text-emerald-700' : 'text-red-700'}>{testMsg.text}</span>}</div>
         {configs.length > 0 && (
           <div className="mb-6 rounded bg-white p-4 shadow">
             <h3 className="mb-3 font-medium">用途分配（哪个任务用哪个模型）</h3>
@@ -218,7 +234,7 @@ export default function Settings({ onBack }: Props) {
               ))}
             </div>
             <p className="mt-3 text-xs text-neutral-400">
-              建议：整段/难句用强模型，难词用便宜模型，省钱且效果好。
+              译文生成与断行整理可分别指定模型；未单独分配时使用默认配置。
             </p>
           </div>
         )}

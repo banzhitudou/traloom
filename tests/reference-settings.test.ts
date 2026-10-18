@@ -9,7 +9,8 @@ describe('user-controlled translation references', () => {
     for (const count of [0, 6, 1.5, NaN]) expect(() => validateReferenceSettings({ count, profiles })).toThrow()
     expect(() => validateReferenceSettings({ count: 3, profiles })).toThrow()
     expect(() => validateReferenceSettings({ count: 2, profiles: [profiles[0], { name: '默认', instructions: '' }] })).toThrow()
-    expect(() => validateReferenceSettings({ count: 1, profiles: [{ name: '默认', instructions: '儿童读物' }] })).toThrow()
+    expect(validateReferenceSettings({ count: 1, profiles: [{ name: '默认', instructions: '正式语体' }] }).profiles[0].instructions).toBe('正式语体')
+    expect(validateReferenceSettings({ count: 1, profiles }).profiles).toHaveLength(2)
     expect(() => validateReferenceSettings({ count: 2, profiles: [profiles[0], { name: ' ', instructions: '' }] })).toThrow()
     expect(() => validateReferenceSettings({ count: 2, profiles: [profiles[0], { name: '其他', instructions: 'a'.repeat(12001) }] })).toThrow()
   })
@@ -20,6 +21,6 @@ describe('user-controlled translation references', () => {
   })
   it('returns the requested number with neutral fallback labels', () => {
     const json = JSON.stringify({ options: [{ text: '甲' }, { text: '乙' }, { text: '丙' }] })
-    expect(parseTranslationOptions(json, 2)).toEqual([{ label: '参考 1', text: '甲' }, { label: '参考 2', text: '乙' }])
+    expect(parseTranslationOptions(json, 2)).toEqual([{ label: '方案 1', text: '甲' }, { label: '方案 2', text: '乙' }])
   })
 })

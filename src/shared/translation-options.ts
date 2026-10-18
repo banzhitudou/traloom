@@ -15,7 +15,7 @@ export function parseTranslationOptions(raw: string, count = 5): TranslationOpti
         if (!text) return []
         const label = typeof item.label === 'string' && item.label.trim()
           ? item.label.trim()
-          : `参考 ${index + 1}`
+          : `方案 ${index + 1}`
         return [{ label, text }]
       })
       if (options.length > 0) return options.slice(0, count)

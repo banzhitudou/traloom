@@ -1,5 +1,5 @@
 import { Fragment, memo, useEffect, useRef, useState, type DragEvent, type MutableRefObject } from 'react'
-import { Check, ChevronUp, Copy, LoaderCircle, Sparkles, Trash2, TriangleAlert, Ungroup } from 'lucide-react'
+import { Check, ChevronUp, Copy, LoaderCircle, Sparkles, Trash2, TriangleAlert, Ungroup, Circle, ClipboardCheck } from 'lucide-react'
 import { getMergedParagraphParts } from '@shared/paragraph-structure'
 import { api } from '@renderer/lib/ipc'
 import type { Paragraph, ParaStatus, VocabularySuggestion } from '@shared/types'
@@ -390,12 +390,23 @@ export default function ParagraphList({ bookPageOffset, bookPagesPerPdf, paragra
   }
 
   /** 标记/取消存疑 */
+  const markStatus = async (status: ParaStatus) => {
+    if (!current || completingRef.current) return
+    completingRef.current = true; setCompleting(true); setCompletionError('')
+    try {
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+      await api.updateTranslation(current.id, draftRef.current)
+      lastSaved.current = draftRef.current
+      setDirty(false)
+      await api.updateStatus(current.id, status)
+      await onTranslated()
+    } catch (error) { setCompletionError(String(error)) }
+    finally { completingRef.current = false; setCompleting(false) }
+  }
   const toggleReview = async () => {
     if (!current) return
-    await api.updateTranslation(current.id, draft)
     const newStatus: ParaStatus = current.status === 'review' ? 'doing' : 'review'
-    await api.updateStatus(current.id, newStatus)
-    onTranslated()
+    await markStatus(newStatus)
   }
 
   const getTranslationReference = async () => {
@@ -948,6 +959,7 @@ export default function ParagraphList({ bookPageOffset, bookPagesPerPdf, paragra
                   {originalError && <div className="mt-1 text-xs text-red-700">{originalError}</div>}
                   {originalNote && <div className="mt-1 text-xs text-blue-700">{originalNote}</div>}
                   <div className="mt-2 flex flex-wrap justify-end gap-2">
+                    {!previewingOriginal && <button type="button" disabled={originalSaving || originalCleaning} className="mr-auto rounded border bg-white px-2 py-1 text-xs" onClick={() => { void api.getOriginalRecognition(p.id).then(text => { if (text === null) { setOriginalError('没有可恢复的原始识别记录；合并段请先解散。'); return } setOriginalDraft(text); setOriginalNote('已载入原始识别结果，保存原文后生效；译文保留。') }).catch(error => setOriginalError(String(error))) }}>恢复原始识别结果</button>}
                     <button
                       type="button"
                       onClick={() => {
@@ -1051,7 +1063,9 @@ export default function ParagraphList({ bookPageOffset, bookPagesPerPdf, paragra
                   {referenceLoading ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> : referenceOptions.length > 0 ? <ChevronUp size={14} aria-hidden="true" /> : <Sparkles size={14} aria-hidden="true" />}
                   {referenceLoading ? 'AI 生成中...' : referenceOptions.length > 0 ? '收起译文参考' : '生成译文参考'}
                 </button>
+                <button type="button" disabled={completing || current?.status === 'doing'} onClick={() => void markStatus('doing')} className={`inline-flex items-center gap-1.5 rounded border px-2 py-1 disabled:opacity-50 ${current?.status === 'doing' ? 'border-blue-600 bg-blue-100 text-blue-800' : 'border-blue-300 text-blue-700 hover:bg-blue-50'}`}><ClipboardCheck size={14} aria-hidden="true" />{current?.status === 'doing' ? '待审' : '标为待审'}</button>
                 <button
+                  disabled={completing}
                   onClick={toggleReview}
                   aria-pressed={current?.status === 'review'}
                   className={`inline-flex items-center gap-1.5 rounded border px-2 py-1 ${current?.status === 'review' ? 'border-orange-700 bg-orange-700 text-white hover:bg-orange-800' : 'border-orange-300 bg-orange-50 text-orange-800 hover:bg-orange-100'}`}
@@ -1059,6 +1073,7 @@ export default function ParagraphList({ bookPageOffset, bookPagesPerPdf, paragra
                   <TriangleAlert size={14} aria-hidden="true" />
                   {current?.status === 'review' ? '取消存疑' : '标为存疑'}
                 </button>
+                <button type="button" disabled={completing || current?.status === 'todo'} onClick={() => void markStatus('todo')} title="仅改变状态，保留已有译文" className="inline-flex items-center gap-1.5 rounded border border-neutral-300 px-2 py-1 text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"><Circle size={14} aria-hidden="true" />{current?.status === 'todo' ? '待译' : '标为待译'}</button>
                 <button
                   type="button"
                   onClick={() => void copyOriginal(p.enText)}

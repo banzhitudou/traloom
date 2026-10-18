@@ -11,6 +11,8 @@ import { reserveNewProjectFile } from '../services/new-project-file'
 import { openDatabase, initSchema, getCurrentDbPath, getDb, closeDatabase } from '../db'
 import type { CreateProjectParams } from '../../shared/ipc-api'
 import { registerRecognitionHandlers } from './recognition'
+import { saveOcrSettings } from '../services/ocr-settings'
+import { validateOcrSettings, DEFAULT_OCR } from '../../shared/ocr-settings'
 import { storeResource, readResource } from '../services/project-resources'
 import { loadGlossary, reloadGlossaryFromDatabase } from '../services/glossary-service'
 import { withRevisionContext } from '../services/revision-history'
@@ -131,10 +133,13 @@ export function registerProjectHandlers(): void {
     let dbPath = ''
     try {
       await validateProjectPdf(params.pdfPath)
+      const ocrSettings = validateOcrSettings(params.ocrSettings ?? DEFAULT_OCR)
+      if(params.recognitionEngine!==undefined && !['offline','vision'].includes(params.recognitionEngine)) throw new Error('无效的识别方式。')
       dbPath = reserveNewProjectFile(params.pdfPath)
       openDatabase(dbPath, { create: true })
       initSchema()
       const db = getDb()
+      saveOcrSettings(db, ocrSettings)
       storeResource(db, 'files/original.pdf', readFileSync(params.pdfPath))
       withRevisionContext(db, '建立 PDF 工程', 'import', {}, () => {
       const insertMeta = db.prepare('INSERT OR REPLACE INTO project_meta (key, value) VALUES (?, ?)')
@@ -144,6 +149,8 @@ export function registerProjectHandlers(): void {
       insertMeta.run('resource_storage', 'embedded')
       insertMeta.run('portable_version', '1')
       insertMeta.run('recognition_enabled', '1')
+      insertMeta.run('recognition_engine', params.recognitionEngine || 'offline')
+      if(params.recognitionEngine==='vision') insertMeta.run('recognition_paused','1')
       insertMeta.run('created_at', new Date().toISOString())
       insertMeta.run('schema_version', '3')
       })

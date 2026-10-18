@@ -23,6 +23,14 @@ import {
 import * as pdfjsLib from 'pdfjs-dist'
 import { PSM, type Worker as TesseractWorker } from 'tesseract.js'
 import { createLocalOcr } from '@renderer/lib/local-ocr'
+import { ocrBlocks } from '@renderer/lib/ocr-blocks'
+import { DEFAULT_OCR, ocrModel, type OcrSettings } from '@shared/ocr-settings'
+import { OcrControls } from './OcrSettings'
+import { hasBrokenPdfText } from '@shared/pdf-text-quality'
+import type { TextItem } from 'pdfjs-dist/types/src/display/api'
+import { isLatinPdfBlock, markBrokenPdfFonts, recoverPdfBlock } from '@renderer/lib/pdf-text-recovery'
+import { renderVisionCrops } from '@renderer/lib/vision-crops'
+import { VISION_OCR_NOTICE } from '@shared/vision-ocr'
 // @ts-ignore - vite 的 ?url 导入
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
@@ -177,6 +185,10 @@ export default function PdfViewer({ onRelinkPdf, bookPageOffset, onBookPageOffse
   const manualAdjustmentRef = useRef<ManualAdjustment | null>(null)
   const manualOperationRef = useRef(0)
   const ocrWorkerRef = useRef<TesseractWorker | null>(null)
+  const ocrWorkerModel = useRef('')
+  const [regionOcrSettings, setRegionOcrSettings] = useState<OcrSettings>(DEFAULT_OCR)
+  const [forceImageOcr, setForceImageOcr] = useState(false)
+  useEffect(() => { void api.getOcrSettings().then(setRegionOcrSettings).catch(error => setManualError(String(error))) }, [])
 
   const [state, setState] = useState<LoadState>('idle')
   const [pageCount, setPageCount] = useState(0)
@@ -224,6 +236,8 @@ export default function PdfViewer({ onRelinkPdf, bookPageOffset, onBookPageOffse
   const [manualError, setManualError] = useState('')
   const [manualCleaning, setManualCleaning] = useState(false)
   const [manualAutoClean, setManualAutoClean] = useState(true)
+  const [visionBefore, setVisionBefore] = useState<string | null>(null)
+  useEffect(() => { setVisionBefore(null) }, [curPage, manualMode, manualEditingId])
   const [manualTextBeforeClean, setManualTextBeforeClean] = useState<string | null>(null)
 
   useEffect(() => {
@@ -781,7 +795,7 @@ export default function PdfViewer({ onRelinkPdf, bookPageOffset, onBookPageOffse
 
   const extractTextFromSelection = async (box: NormalizedBbox) => {
     const doc = pdfDocRef.current
-    if (!doc || curPage < 1) return ''
+    if (!doc || curPage < 1) return { text: '', broken: false }
     const page = await doc.getPage(curPage)
     const viewport = page.getViewport({ scale: 1 })
     const content = await page.getTextContent()
@@ -790,27 +804,56 @@ export default function PdfViewer({ onRelinkPdf, bookPageOffset, onBookPageOffse
     const right = (box.left + box.width) * viewport.width
     const bottom = (box.top + box.height) * viewport.height
     const lines = new Map<number, { x: number; text: string }[]>()
+    let broken = false
 
-    for (const item of content.items) {
-      if (!('str' in item) || !item.str.trim()) continue
+    for (const item of markBrokenPdfFonts(content.items.filter((item): item is TextItem => 'str' in item), regionOcrSettings)) {
+      if (!item.str.trim()) continue
       const [,,, , x, y] = item.transform
       const itemWidth = item.width
       const itemHeight = Math.abs(item.height) || 10
       const itemTop = viewport.height - y - itemHeight
       const itemBottom = viewport.height - y + itemHeight * 0.25
       if (x + itemWidth < left || x > right || itemBottom < top || itemTop > bottom) continue
+      if (item.needsOcr) broken = true
       const lineKey = Math.round((viewport.height - y) / 4) * 4
       const line = lines.get(lineKey) ?? []
       line.push({ x, text: item.str })
       lines.set(lineKey, line)
     }
 
-    return [...lines.entries()]
+    const text = [...lines.entries()]
       .sort(([a], [b]) => a - b)
-      .map(([, line]) => line.sort((a, b) => a.x - b.x).map((item) => item.text).join(' '))
+      .map(([, line]) => line.sort((a, b) => a.x - b.x).map((item) => item.text).join(regionOcrSettings.language === 'jpn' ? '' : ' '))
       .join('\n')
       .replace(/[ \t]+\n/g, '\n')
       .trim()
+    return { text, broken }
+  }
+
+  const recognizeVisionBoxes = async () => {
+    const pdf = pdfDocRef.current
+    const boxes = materializeManualBoxes()
+    if (!pdf || !boxes.length || manualRecognizing || manualCleaning) return
+    const operation = ++manualOperationRef.current
+    setManualRecognizing(true); setManualError('')
+    setManualRecognitionNote('正在准备所选区域图片；发送前会请求确认…')
+    try {
+      const crops = await renderVisionCrops(pdf, curPage, boxes, ocrRotation)
+      if (operation !== manualOperationRef.current) return
+      const result = await api.recognizeVision({ paragraphId:manualEditingId ?? undefined,pageIdx:curPage-1,rotation:ocrRotation,crops })
+      if (operation !== manualOperationRef.current) return
+      if (!result.ok || !result.text) throw new Error(result.error || '视觉识别未返回文字。')
+      const ocrRecordId = await api.recordOcrResult({ paragraphId:manualEditingId ?? undefined,pageIdx:curPage-1,boxes,rotation:ocrRotation,method:'AI vision',text:result.text })
+      if (operation !== manualOperationRef.current) return
+      setVisionBefore(manualText)
+      setManualTextBeforeClean(null)
+      setManualText(result.text)
+      recognitionEvidence.current = { ocrRecordId, generationId:result.generationId }
+      setManualRecognitionNote('AI 视觉识别完成，尚未保存。请对照 PDF 核对数字、单位及［无法辨认］，确认后再保存；未自动整理断行。')
+      if (originalDetailsRef.current) originalDetailsRef.current.open = true
+    } catch (error) {
+      if (operation === manualOperationRef.current) { setManualError(String(error)); setManualRecognitionNote('未采用新的识别结果，原文和译文保持不变。') }
+    } finally { if (operation === manualOperationRef.current) setManualRecognizing(false) }
   }
 
   const recognizeManualBoxes = async (boxes: NormalizedBbox[]) => {
@@ -830,12 +873,13 @@ export default function PdfViewer({ onRelinkPdf, bookPageOffset, onBookPageOffse
       let usedOcr = false
       for (const [index, box] of boxes.entries()) {
         setManualRecognitionNote(boxes.length > 1 ? `正在识别第 ${index + 1} / ${boxes.length} 个框…` : '正在读取 PDF 内置文本层…')
-        let text = ocrRotation === 0 ? await extractTextFromSelection(box) : ''
+        const selection = ocrRotation === 0 && regionOcrSettings.direction !== 'vertical' ? await extractTextFromSelection(box) : { text: '', broken: false }
+        let text = selection.text
         if (operation !== manualOperationRef.current) return
-        if (!text) {
+        if (forceImageOcr || selection.broken || !text || hasBrokenPdfText(text, regionOcrSettings)) {
           usedOcr = true
-          setManualRecognitionNote(boxes.length > 1 ? `第 ${index + 1} 个框正在使用本机 OCR…` : 'PDF 没有内置文字，正在使用本机 OCR…')
-          text = await recognizeCanvasSelection(box)
+          setManualRecognitionNote(text ? 'PDF 文字层编码异常，正在使用本机 OCR…' : '正在使用本机 OCR…')
+          text = await recognizeCanvasSelection(box, undefined, !!text && regionOcrSettings.language === 'jpn' && isLatinPdfBlock(text))
           if (operation !== manualOperationRef.current) return
         }
         if (text.trim()) recognized.push(text.trim())
@@ -886,7 +930,8 @@ export default function PdfViewer({ onRelinkPdf, bookPageOffset, onBookPageOffse
     }
   }
 
-  const recognizeCanvasSelection = async (box: NormalizedBbox, onRegions?: (regions: { text: string; box: NormalizedBbox }[]) => void) => {
+  const recognizeCanvasSelection = async (box: NormalizedBbox, onRegions?: (regions: { text: string; box: NormalizedBbox }[]) => void, latin = false) => {
+    const settings = latin ? DEFAULT_OCR : regionOcrSettings
     let canvas = canvasRef.current
     // OCR uses an independent render, not the current screen zoom.
     const fullPageSource = !!pdfDocRef.current
@@ -923,21 +968,23 @@ export default function PdfViewer({ onRelinkPdf, bookPageOffset, onBookPageOffse
     context.drawImage(canvas, cropLeft, cropTop, cropWidth, cropHeight, 0, 0, image.width, image.height)
 
     let worker = onRegions ? null : ocrWorkerRef.current
+    if (worker && ocrWorkerModel.current !== ocrModel(settings)) { await worker.terminate(); ocrWorkerRef.current = null; worker = null }
     if (!worker) {
-      setManualOcrProgress('正在准备英文识别模型…')
+      setManualOcrProgress('正在准备识别模型…')
       worker = await createLocalOcr((message) => {
           if (message.status === 'recognizing text') {
             setManualOcrProgress(`正在识别…${Math.round(message.progress * 100)}%`)
           } else if (message.status.includes('loading')) {
-            setManualOcrProgress('正在加载内置英文识别模型…')
+            setManualOcrProgress('正在加载内置识别模型…')
           }
-      })
+      }, settings)
       await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT })
-      if (!onRegions) ocrWorkerRef.current = worker
+      if (!onRegions) { ocrWorkerRef.current = worker; ocrWorkerModel.current = ocrModel(settings) }
     } else {
       setManualOcrProgress('正在识别…')
     }
     try {
+      if (latin && ocrRotation === 0 && !onRegions) return await recoverPdfBlock(canvas, { text: '', box: visible }, worker, true)
       let input = image
       if (ocrRotation !== 0) {
         input = document.createElement('canvas')
@@ -949,8 +996,9 @@ export default function PdfViewer({ onRelinkPdf, bookPageOffset, onBookPageOffse
         rotated.rotate(ocrRotation * Math.PI / 180)
         rotated.drawImage(image, -image.width / 2, -image.height / 2)
       }
-      await worker.setParameters({ tessedit_pageseg_mode: onRegions ? PSM.AUTO : PSM.SPARSE_TEXT })
-      const result = await worker.recognize(input, {}, { text: true, blocks: !!onRegions })
+      await worker.setParameters({ tessedit_pageseg_mode: settings.direction === 'vertical' ? PSM.SINGLE_BLOCK_VERT_TEXT : onRegions ? PSM.AUTO : latin ? PSM.SINGLE_LINE : PSM.SPARSE_TEXT })
+      const result = await worker.recognize(input, {}, { text: true, blocks: true })
+      const recognized = ocrBlocks((result.data.blocks ?? []).flatMap(block => block.paragraphs), input.width, input.height, settings)
       if (onRegions) {
         const crop = {
           left: (cropLeft / sourceWidth) * (splitSource ? 0.5 : 1) + (splitSource && half === 'right' ? 0.5 : 0),
@@ -958,12 +1006,12 @@ export default function PdfViewer({ onRelinkPdf, bookPageOffset, onBookPageOffse
           width: cropWidth / sourceWidth * (splitSource ? 0.5 : 1),
           height: cropHeight / sourceHeight
         }
-        onRegions((result.data.blocks ?? []).flatMap(block => block.paragraphs).filter(item => item.text.trim()).map(item => ({
-          text: item.text.trim(),
-          box: mapOcrRegion({ left: item.bbox.x0 / input.width, top: item.bbox.y0 / input.height, width: (item.bbox.x1 - item.bbox.x0) / input.width, height: (item.bbox.y1 - item.bbox.y0) / input.height }, crop, ocrRotation)
+        onRegions(recognized.map(item => ({
+          text: item.text,
+          box: mapOcrRegion(item.box, crop, ocrRotation)
         })))
       }
-      return result.data.text.trim()
+      return settings.language === 'jpn' && recognized.length ? recognized.map(block => block.text).join('\n\n') : result.data.text.trim()
     } finally {
       if (onRegions) await worker.terminate()
       setManualOcrProgress('')
@@ -1743,6 +1791,11 @@ export default function PdfViewer({ onRelinkPdf, bookPageOffset, onBookPageOffse
             />
             <span>{manualCleaning ? 'AI 整理中…' : '识别后 AI 整理断行'}</span>
           </label>
+          <OcrControls value={regionOcrSettings} onChange={setRegionOcrSettings} disabled={manualRecognizing || manualCleaning} />
+          <button type="button" title={VISION_OCR_NOTICE} onClick={() => void recognizeVisionBoxes()} disabled={!manualBox || manualRecognizing || manualCleaning || manualSaving} className="rounded border border-blue-300 px-2 py-1 text-xs text-blue-700 disabled:opacity-40">AI 视觉识别（测试）…</button>
+          <p role="note" className="basis-full text-xs text-amber-800">{VISION_OCR_NOTICE}</p>
+          {visionBefore !== null && <details className="basis-full text-xs"><summary className="cursor-pointer">视觉识别前的原文</summary><pre className="whitespace-pre-wrap break-words p-2">{visionBefore || '（空）'}</pre></details>}
+          <label className="inline-flex items-center gap-1 text-sm"><input type="checkbox" checked={forceImageOcr} onChange={event => setForceImageOcr(event.target.checked)} disabled={manualRecognizing || manualCleaning} />忽略文字层，使用本机 OCR</label>
           {manualTextBeforeClean !== null && (
             <button
               type="button"
@@ -1765,7 +1818,7 @@ export default function PdfViewer({ onRelinkPdf, bookPageOffset, onBookPageOffse
                 value={manualText}
                 disabled={manualRecognizing || manualCleaning || manualSaving}
                 onChange={(event) => setManualText(event.target.value)}
-                placeholder="输入这块区域的英文原文…"
+                placeholder="输入这块区域的原文…"
                 className="selectable min-h-[72px] max-h-40 w-full resize-y rounded border p-2 text-sm focus:border-amber-500 focus:outline-none"
               />
             </div>

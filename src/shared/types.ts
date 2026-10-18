@@ -98,6 +98,8 @@ export interface LlmStatus {
 
 /** AI 任务类型（决定用哪个模型配置 + 哪套提示词） */
 export type AiTask =
+  | 'vision_ocr' // AI 视觉识别
+  | 'ocr_line_breaks' // AI 整理断行
   | 'whole_para'      // 整段参考
   | 'hard_sentence'   // 难句分析
   | 'hard_word'       // 难词解释

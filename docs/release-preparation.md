@@ -6,9 +6,9 @@
 
 建议仓库名：`traloom`
 
-英文简介：`A local desktop workspace for AI-assisted book translation, with PDF reference, terminology checks, revision history, and bilingual exports.`
+英文简介：`From PDF to Chinese manuscript: an open-source, AI-assisted translation workspace with terminology review and bilingual DOCX/HTML exports.`
 
-中文简介：`AI 辅助、译者精修的本地图书翻译工作台，支持 PDF 对照、术语一致性检查、修订记录和双语导出。`
+中文简介：`从一本 PDF，到一份可以交付的中文译稿。开源 AI 辅助翻译工作台，支持原页对照、术语统一、审校和 DOCX/HTML 交付。`
 
 建议 Topics：`translation`、`computer-assisted-translation`、`pdf`、`electron`、`typescript`、`llm`、`terminology`、`local-first`。
 
@@ -22,7 +22,7 @@
 - [ ] 在干净环境运行 `npm ci`、`npm test`、`npm run typecheck` 和 `npm run build`。
 - [ ] 使用自制 PDF 制作截图；不使用真实书稿，截图并非公开源码的前置条件。
 - [ ] 创建仓库后启用私密漏洞报告，并核对 SECURITY.md 的报告路径。
-- [ ] 对外明确早期版本、中文界面、英文 OCR 和当前平台验证范围。
+- [ ] 对外明确早期版本、中文界面、英语与日文 OCR、AI 视觉识别测试状态和当前平台验证范围。
 - [ ] 安装包正式发行另行完成平台验证、签名及公证，不与公开源码混为一谈。
 
 首次上传到私有仓库审查，通过后再决定是否公开。不要上传真实工程、书稿或凭据。

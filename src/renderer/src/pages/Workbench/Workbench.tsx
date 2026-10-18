@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
-import { ChevronDown, FolderOpen, FileText, Search, Download, Settings as SettingsIcon } from 'lucide-react'
+import { ChevronDown, FolderOpen, FileText, Search, Download, ListChecks, Settings as SettingsIcon } from 'lucide-react'
 import { api } from '@renderer/lib/ipc'
 import type { LlmStatus, Paragraph, Progress } from '@shared/types'
 import { formatParagraphNumbers, getParagraphSequenceNumbers } from '@shared/paragraph-numbering'
@@ -8,6 +8,8 @@ import PdfViewer from './PdfViewer'
 import RightPanel, { type RightPanelTab } from './RightPanel'
 import SearchDialog from './SearchDialog'
 import PdfRecognition from './PdfRecognition'
+import BatchProcessing from './BatchProcessing'
+import VisionPageRecognition from './VisionPageRecognition'
 import type { TranslationExportOptions as ExportOptions } from '@shared/translation-export'
 import { exportPageImages } from './export-page-images'
 import { isExportPage, validateExportRange } from '@shared/translation-export'
@@ -43,6 +45,10 @@ export default function Workbench({ onOpenSettings, onManageProjects }: Props) {
   const [exporting, setExporting] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [showProjectInfo, setShowProjectInfo] = useState(false)
+  const [showBatch, setShowBatch] = useState(false)
+  const [batchMounted, setBatchMounted] = useState(false)
+  const [showVisionPages,setShowVisionPages]=useState(false)
+  const [recognitionVersion,setRecognitionVersion]=useState(0)
   const [projectInfo, setProjectInfo] = useState<Record<string, string>>({})
   const [projectInfoSaving, setProjectInfoSaving] = useState(false)
   const [projectInfoError, setProjectInfoError] = useState('')
@@ -156,6 +162,20 @@ export default function Workbench({ onOpenSettings, onManageProjects }: Props) {
     const p = await api.getProgress()
     setProgress(p)
   }, [])
+
+  const refreshAfterBatch = useCallback(async () => {
+    await saveCurrentRef.current()
+    await refresh()
+  }, [refresh])
+  const openVisionPages=async()=>{
+    setProjectMenuOpen(false)
+    try{
+      await saveCurrentRef.current()
+      const state=await api.getRecognitionState()
+      if(state.enabled&&!state.paused)await api.setRecognitionPaused(state.projectPath,true)
+      setShowVisionPages(true)
+    }catch(error){setJumpError(String(error))}
+  }
 
   useEffect(() => {
     let active = true
@@ -411,6 +431,8 @@ export default function Workbench({ onOpenSettings, onManageProjects }: Props) {
               <button type="button" aria-label="关闭项目菜单" onClick={() => setProjectMenuOpen(false)} className="fixed inset-0 z-40 cursor-default" />
               <div role="menu" className="absolute left-0 top-full z-50 mt-1 w-40 rounded border bg-white py-1 shadow-lg">
                 <button role="menuitem" type="button" onClick={() => { setProjectMenuOpen(false); void handleManageProjects() }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-neutral-50"><FolderOpen size={15} />切换项目</button>
+                <button role="menuitem" type="button" onClick={() => { setProjectMenuOpen(false); void saveCurrentRef.current().then(refresh).then(() => { setBatchMounted(true); setShowBatch(true) }).catch(error => setJumpError(String(error))) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-neutral-50"><ListChecks size={15} />批量处理</button>
+                <button role="menuitem" type="button" onClick={()=>void openVisionPages()} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-neutral-50"><FileText size={15}/>AI 整页识别与分块（测试）</button>
                 <button role="menuitem" type="button" onClick={() => {
                   setProjectMenuOpen(false); setProjectInfoError('')
                   void api.getProjectMeta().then(meta => {
@@ -451,7 +473,7 @@ export default function Workbench({ onOpenSettings, onManageProjects }: Props) {
         </div>
       </header>
 
-      <PdfRecognition onPage={refresh} />
+      <PdfRecognition key={recognitionVersion} suspended={showVisionPages} onVision={()=>void openVisionPages()} onPage={refresh} onBatch={() => { setBatchMounted(true); setShowBatch(true) }} />
 
       {/* 主工作区：可拖动双栏，工具抽屉覆盖 PDF，不参与尺寸计算。 */}
       <div ref={workspaceRef} className="flex min-h-0 flex-1 overflow-hidden">
@@ -601,6 +623,8 @@ export default function Workbench({ onOpenSettings, onManageProjects }: Props) {
         />
       )}
 
+      {batchMounted && <BatchProcessing visible={showBatch} total={paragraphs.length} onClose={() => setShowBatch(false)} onChanged={refreshAfterBatch} onOpenSettings={() => { void saveCurrentRef.current().then(() => { setShowBatch(false); onOpenSettings() }).catch(error => window.alert(String(error))) }} />}
+      {showVisionPages&&<VisionPageRecognition onClose={()=>{setShowVisionPages(false);setRecognitionVersion(v=>v+1)}} onChanged={async()=>{await refreshAfterBatch();setRecognitionVersion(v=>v+1)}} onSettings={()=>{setShowVisionPages(false);onOpenSettings()}}/>}
       {showProjectInfo && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="dialog" aria-modal="true" aria-labelledby="project-info-title">
         <form className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-5 shadow-xl" onSubmit={event => {
           event.preventDefault()

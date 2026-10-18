@@ -9,7 +9,7 @@ const { ipcMain, trustRenderer } = require('../src/main/ipc/secure-ipc.ts')
 const { registerOcrResources } = require('../src/main/ocr-resources.ts')
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'traloom-desktop-security-'))
 const bundle = path.resolve('out/renderer/ocr-security-check.mjs')
-require('esbuild').buildSync({ entryPoints: ['tests/browser-ocr.runtime.ts'], bundle: true, platform: 'browser', format: 'esm', outfile: bundle })
+require('esbuild').buildSync({ entryPoints: ['tests/browser-ocr.runtime.ts'], bundle: true, platform: 'browser', format: 'esm', outfile: bundle, alias: { '@shared': path.resolve('src/shared') } })
 app.setPath('userData', root)
 app.setAppPath(path.resolve('.'))
 const timeout = setTimeout(() => { fs.rmSync(bundle, { force: true }); console.error('Desktop security test timed out'); app.exit(1) }, 60000)
@@ -37,6 +37,14 @@ app.whenReady().then(async () => {
   const recognized = await window.webContents.executeJavaScript(`import(${JSON.stringify(pathToFileURL(bundle).href)}).then(module => module.recognizeFixture(${JSON.stringify(fixture)}))`)
   assert.match(recognized, /A small garden/i)
   console.log('Actual offline OCR recognition passed under renderer CSP:', recognized.trim())
+  for (const [vertical, automatic] of [[false, false], [true, false], [true, true]]) {
+    const japanese = await window.webContents.executeJavaScript(`import(${JSON.stringify(pathToFileURL(bundle).href)}).then(module => module.recognizeJapaneseFixture(${vertical}, ${automatic}))`)
+    console.log('Japanese OCR', vertical ? 'vertical' : 'horizontal', automatic ? 'full-page' : 'region', japanese)
+    assert.match(japanese.text, /今日は良い天気です/)
+    assert.match(japanese.text, /日本語を読みます/)
+    assert.ok(japanese.text.indexOf('今日') < japanese.text.indexOf('日本語'), 'Japanese reading order')
+    assert.ok(japanese.blocks.every(block => block.box.width > 0 && block.box.height > 0 && block.box.left + block.box.width <= 1 && block.box.top + block.box.height <= 1))
+  }
   const content = '0 0 1 rg 10 10 30 30 re f\n0 0 0 rg\nBT /F1 16 Tf 10 60 Td (A small garden.) Tj ET\nBT /F1 10 Tf 0 1 -1 0 170 10 Tm (Sideways text) Tj ET'
   const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
     '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
@@ -47,6 +55,18 @@ app.whenReady().then(async () => {
   pdf += `xref\n0 6\n0000000000 65535 f \n${offsets.slice(1).map(n => String(n).padStart(10, '0') + ' 00000 n ').join('\n')}\ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`
   const assets = path.resolve('out/renderer/assets')
   const pdfWorker = pathToFileURL(path.join(assets, fs.readdirSync(assets).find(name => name.startsWith('pdf.worker.')))).href
+  if (process.env.TRALOOM_OCR_DIAGNOSTIC_PDF) {
+    const dataUrl = 'data:application/pdf;base64,' + fs.readFileSync(process.env.TRALOOM_OCR_DIAGNOSTIC_PDF).toString('base64')
+    const diagnostic = await window.webContents.executeJavaScript(`import(${JSON.stringify(pathToFileURL(bundle).href)}).then(module => module.inspectJapanesePdf(${JSON.stringify(dataUrl)}, ${JSON.stringify(pdfWorker)}))`)
+    fs.writeFileSync(path.join(os.tmpdir(), 'traloom-ocr-diagnostic.png'), Buffer.from(diagnostic.crop.split(',')[1], 'base64'))
+    console.log('Japanese PDF diagnostic:', { ...diagnostic, crop: '(saved to temporary directory)' })
+    assert.ok(diagnostic.suspicious > 0)
+    const recovered = diagnostic.recovered.map(block => block.after).join(' ')
+    assert.match(recovered, /2\.36/)
+    // Unit letters are recovered, but the bundled OCR still lowercases W here.
+    assert.match(recovered, /kw/i)
+    assert.match(recovered, /1\.99/)
+  }
   const rendered = await window.webContents.executeJavaScript(`import(${JSON.stringify(pathToFileURL(bundle).href)}).then(module => module.renderPdfFixture(${JSON.stringify(Array.from(Buffer.from(pdf)))}, ${JSON.stringify(pdfWorker)}))`)
   assert.match(rendered.text, /A small garden/)
   assert.ok(rendered.blue > 500)

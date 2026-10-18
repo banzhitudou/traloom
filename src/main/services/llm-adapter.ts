@@ -19,7 +19,7 @@ export interface LlmCallConfig {
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
-  content: string
+  content: string | Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }>
 }
 
 export interface LlmCallResult {
@@ -122,11 +122,11 @@ export function buildLlmRequest(
   if (config.protocol === 'openai_responses') {
     const instructions = messages
       .filter((message) => message.role === 'system')
-      .map((message) => message.content)
+      .map((message) => typeof message.content === 'string' ? message.content : message.content.filter(part => part.type === 'text').map(part => part.text).join('\n'))
       .join('\n\n')
     const input = messages
       .filter((message) => message.role !== 'system')
-      .map((message) => ({ role: message.role, content: message.content }))
+      .map((message) => ({ role: message.role, content: typeof message.content === 'string' ? message.content : message.content.map(part => part.type === 'text' ? { type: 'input_text', text: part.text } : { type: 'input_image', image_url: part.image_url.url }) }))
 
     return {
       url: appendEndpoint(config.baseUrl, '/responses'),
@@ -144,11 +144,16 @@ export function buildLlmRequest(
 
   const system = messages
     .filter((message) => message.role === 'system')
-    .map((message) => message.content)
+    .map((message) => typeof message.content === 'string' ? message.content : message.content.filter(part => part.type === 'text').map(part => part.text).join('\n'))
     .join('\n\n')
   const anthropicMessages = messages
     .filter((message) => message.role !== 'system')
-    .map((message) => ({ role: message.role, content: message.content }))
+    .map((message) => ({ role: message.role, content: typeof message.content === 'string' ? message.content : message.content.map(part => {
+      if (part.type === 'text') return { type: 'text', text: part.text }
+      const match = /^data:(image\/(?:png|jpeg));base64,([A-Za-z0-9+/=]+)$/.exec(part.image_url.url)
+      if (!match) throw new Error('视觉识别仅支持内嵌 PNG 或 JPEG 图片。')
+      return { type: 'image', source: { type: 'base64', media_type: match[1], data: match[2] } }
+    }) }))
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'anthropic-version': '2023-06-01'
@@ -259,7 +264,8 @@ export function describeHttpError(
 /** 调用 LLM，返回文本。 */
 export async function chat(
   config: LlmCallConfig,
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  timeoutMs = 60000
 ): Promise<LlmCallResult> {
   let request: PreparedLlmRequest
   try {
@@ -271,7 +277,7 @@ export async function chat(
   }
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 60000)
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
     await ensureSystemProxy()
     const resp = await session.defaultSession.fetch(request.url, {
@@ -300,7 +306,7 @@ export async function chat(
     return { ok: true, text, rawResponse: data }
   } catch (e: unknown) {
     const err = e as Error & { cause?: NetworkErrorCause }
-    const error = err.name === 'AbortError' ? '请求超时（60秒）' : describeNetworkError(err)
+    const error = err.name === 'AbortError' ? `请求超时（${Math.round(timeoutMs/1000)}秒）` : describeNetworkError(err)
     recordLlmStatus(config, 'error', error)
     return { ok: false, error }
   } finally {

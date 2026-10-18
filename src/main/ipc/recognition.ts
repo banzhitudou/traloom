@@ -3,8 +3,10 @@ import { getCurrentDbPath, getDb } from '../db'
 import { dirname, join } from 'path'
 import { mkdirSync, writeFileSync, renameSync } from 'fs'
 import type { RecognizedBlock } from '../../shared/ipc-api'
-import { commitRecognizedPage } from '../services/pdf-recognition'
+import { commitRecognizedPage, isRecognitionPaused, setRecognitionPaused } from '../services/pdf-recognition'
 import { storeResource } from '../services/project-resources'
+import { getOcrSettings, saveOcrSettings } from '../services/ocr-settings'
+import type { OcrSettings } from '../../shared/ocr-settings'
 
 function checkProject(path: string): void {
   if (path !== getCurrentDbPath()) throw new Error('工程已切换，已停止识别。')
@@ -12,7 +14,7 @@ function checkProject(path: string): void {
   if (enabled?.value !== '1') throw new Error('此工程未启用自动识别。')
 }
 
-function updateRecognitionFiles(): void {
+export function updateRecognitionFiles(): void {
   const db = getDb()
   const pages = db.prepare('SELECT page_idx,method,blocks_json FROM recognized_page ORDER BY page_idx').all() as { page_idx: number; method: string; blocks_json: string }[]
   const recognized = pages.map(p => ({ page: p.page_idx + 1, method: p.method, blocks: JSON.parse(p.blocks_json) as RecognizedBlock[] }))
@@ -32,10 +34,16 @@ function updateRecognitionFiles(): void {
 }
 
 export function registerRecognitionHandlers(): void {
+  ipcMain.handle('project:recognitionPause', (_event, path: string, paused: boolean) => {
+    checkProject(path)
+    setRecognitionPaused(getDb(), paused)
+  })
+  ipcMain.handle('ocr:settings', () => getOcrSettings(getDb()))
+  ipcMain.handle('ocr:saveSettings', (_event, settings: OcrSettings) => saveOcrSettings(getDb(), settings))
   ipcMain.handle('project:recognitionState', () => {
     const db = getDb()
     const meta = Object.fromEntries((db.prepare("SELECT key,value FROM project_meta WHERE key LIKE 'recognition_%'").all() as { key: string; value: string }[]).map(r => [r.key, r.value]))
-    return { projectPath: getCurrentDbPath()!, enabled: meta.recognition_enabled === '1', total: Number(meta.recognition_total || 0), completed: (db.prepare('SELECT page_idx FROM recognized_page ORDER BY page_idx').all() as { page_idx: number }[]).map(p => p.page_idx) }
+    return { projectPath: getCurrentDbPath()!, enabled: meta.recognition_enabled === '1', engine: meta.recognition_engine === 'vision' ? 'vision' : 'offline', paused: isRecognitionPaused(db), total: Number(meta.recognition_total || 0), completed: (db.prepare('SELECT page_idx FROM recognized_page ORDER BY page_idx').all() as { page_idx: number }[]).map(p => p.page_idx) }
   })
   ipcMain.handle('project:recognitionInit', (_e, path: string, total: number) => {
     checkProject(path)
@@ -48,6 +56,7 @@ export function registerRecognitionHandlers(): void {
   })
   ipcMain.handle('project:recognitionPage', (_e, path: string, pageIdx: number, blocks: RecognizedBlock[], method: string) => {
     checkProject(path)
+    if (isRecognitionPaused(getDb())) throw new Error('识别已暂停，该页未写入。')
     commitRecognizedPage(getDb(), pageIdx, blocks, method)
     updateRecognitionFiles()
   })

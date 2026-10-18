@@ -25,10 +25,12 @@ import type {
 export interface CreateProjectParams {
   bookTitle: string
   pdfPath: string
+  ocrSettings?: import('./ocr-settings').OcrSettings
+  recognitionEngine?: 'offline' | 'vision'
 }
 
-export interface RecognizedBlock { text: string; box: { left: number; top: number; width: number; height: number } }
-export interface RecognitionState { projectPath: string; enabled: boolean; total: number; completed: number[] }
+export interface RecognizedBlock { text: string; box: { left: number; top: number; width: number; height: number }; ocrUnresolved?: boolean }
+export interface RecognitionState { projectPath: string; enabled: boolean; paused: boolean; total: number; completed: number[]; engine?: 'offline' | 'vision' }
 export interface ReferenceProfile { name: string; instructions: string }
 export interface ReferenceSettings { count: number; profiles: ReferenceProfile[] }
 export interface AutomaticBackup { id: string; createdAt: string; size: number }
@@ -107,6 +109,16 @@ export interface UpdateParagraphRegionParams {
  * preload.ts 通过 contextBridge 把它挂到 window.api。
  */
 export interface ExposedApi {
+  getOcrSettings(): Promise<import('./ocr-settings').OcrSettings>
+  saveOcrSettings(settings: import('./ocr-settings').OcrSettings): Promise<void>
+  planBatch(scope: import('./batch-processing').BatchScope): Promise<import('./batch-processing').BatchPlan>
+  listBatchJobs(): Promise<import('./batch-processing').BatchJob[]>
+  getBatchJob(id: string): Promise<import('./batch-processing').BatchJob>
+  createBatchJob(scope: import('./batch-processing').BatchScope, sampleIds: number[]): Promise<import('./batch-processing').BatchJob>
+  startBatchJob(id: string, limit: number, autoApply: boolean): Promise<import('./batch-processing').BatchJob>
+  decideBatch(id: string, ids: number[], adopt: boolean): Promise<import('./batch-processing').BatchJob>
+  controlBatch(id: string, action: 'pause' | 'cancel' | 'retry'): Promise<import('./batch-processing').BatchJob>
+  dismissBatchHint(): Promise<void>
   // ── 项目 ──
   createProject(params: CreateProjectParams): Promise<{ ok: boolean; error?: string; stats?: { paragraphs: number; glossary: number; names: number; places: number; documents: number } }>
   openProject(filePath: string): Promise<{ ok: boolean; error?: string }>
@@ -117,6 +129,20 @@ export interface ExposedApi {
   getProjectMeta(): Promise<Record<string, string>>
   updateProjectInfo(info: Record<string, string>): Promise<void>
   getRecognitionState(): Promise<RecognitionState>
+  recognizeVision(input: import('./vision-ocr').VisionOcrInput): Promise<AiCallResult>
+  planVisionPages(total:number,from:number,to:number):Promise<import('./vision-page').VisionPagePlan>
+  listVisionPages():Promise<import('./vision-page').VisionPageSummary[]>
+  getVisionPage(id:string):Promise<import('./vision-page').VisionPageCandidate>
+  readVisionPageImage(id:string):Promise<ArrayBuffer>
+  approveVisionPages(path:string,total:number,pages:number[],maxTokens?:number):Promise<string|null>
+  runVisionPage(token:string,pageIdx:number,dataUrl:string,anchors?:RecognizedBlock[]):Promise<import('./vision-page').VisionPageCandidate>
+  adoptVisionPage(id:string,blocks:import('./vision-page').VisionPageBlock[]):Promise<import('./vision-page').VisionPageCandidate|null>
+  discardVisionPage(id:string):Promise<import('./vision-page').VisionPageCandidate>
+  approveVisionBatch(id:string, limit:number): Promise<string | null>
+  stepVisionBatch(token:string, input:import('./vision-ocr').VisionOcrInput): Promise<import('./batch-processing').BatchJob>
+  getOriginalRecognition(id: number): Promise<string | null>
+  restoreRecognition(from: number, to: number): Promise<{ restored: number; skipped: number }>
+  setRecognitionPaused(projectPath: string, paused: boolean): Promise<void>
   initializeRecognition(projectPath: string, total: number): Promise<void>
   saveRecognizedPage(projectPath: string, pageIdx: number, blocks: RecognizedBlock[], method: string): Promise<void>
   getReferenceSettings(): Promise<ReferenceSettings>
@@ -197,7 +223,7 @@ export interface ExposedApi {
 
   // ── LLM 配置 ──
   listLlmConfigs(): Promise<LlmConfig[]>
-  getLlmStatus(): Promise<LlmStatus>
+  getLlmStatus(task?: AiTask): Promise<LlmStatus>
   saveLlmConfig(config: Partial<LlmConfig> & { id?: number }): Promise<LlmConfig>
   testLlmConnection(config: Partial<LlmConfig>): Promise<{ ok: boolean; error?: string }>
   getLlmAssignments(): Promise<Partial<Record<AiTask, number>>>

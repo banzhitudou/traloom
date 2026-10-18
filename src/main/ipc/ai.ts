@@ -42,7 +42,7 @@ function referenceSettings(): ReferenceSettings {
   const meta = Object.fromEntries(rows.map(r => [r.key,r.value]))
   if (meta.reference_profiles) {
     const profiles = JSON.parse(meta.reference_profiles)
-    return validateReferenceSettings({ count: profiles.length, profiles })
+    return validateReferenceSettings({ count: Number(meta.reference_count || profiles.length), profiles })
   }
   return migrateReferenceSettings(Number(meta.reference_count || 1), meta.reference_instructions || '')
 }
@@ -73,8 +73,8 @@ export function registerAiHandlers(): void {
   ipcMain.handle('ai:cleanOcrLineBreaks', async (_event, input: string, paragraphId?: number): Promise<AiCallResult> => {
     const enText = String(input ?? '').trim()
     if (!enText) return { ok: false, error: '请先识别或输入英文原文。' }
-    const config = await getConfigForTask('whole_para')
-    if (!config) return { ok: false, error: '未配置整段翻译模型，无法整理断行。' }
+    const config = await getConfigForTask('ocr_line_breaks')
+    if (!config) return { ok: false, error: '请先在设置中为“AI 整理断行”分配模型，或设置默认模型。' }
     const prompt = buildOcrLineBreakPrompt(enText)
     const result = await loggedChat(config, [
       { role: 'system', content: prompt.system },
@@ -91,7 +91,7 @@ export function registerAiHandlers(): void {
       text = cleaned
     }
     if (!text) return { ok: false, error: '模型没有返回可用的整理结果，请重试。' }
-    logAi(paragraphId, 'whole_para', prompt.user, text)
+    logAi(paragraphId, 'ocr_line_breaks', prompt.user, text)
     return { ok: true, text, generationId: result.generationId }
   })
 
@@ -103,6 +103,7 @@ export function registerAiHandlers(): void {
     const settings = referenceSettings()
     const prompt = buildTranslationOptionsPrompt({
       ...settings,
+      profiles: settings.profiles.slice(0, settings.count),
       enText: para.en_text,
       zhDraft: para.zh_text,
       styleGuide: getStyleGuide()

@@ -1,6 +1,6 @@
 # Demo PDFs / 示例 PDF
 
-Download the PDFs from the [Traloom 0.2.4 release](https://github.com/banzhitudou/traloom/releases/tag/v0.2.4).
+Download the PDFs from the [Traloom 0.3.1 preview release](https://github.com/banzhitudou/traloom/releases/tag/v0.3.1). The same demos remain available in the [0.2.4 release](https://github.com/banzhitudou/traloom/releases/tag/v0.2.4).
 
 | Attachment | PDF pages | Use |
 | --- | --- | --- |

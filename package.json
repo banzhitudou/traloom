@@ -1,6 +1,6 @@
 {
   "name": "traloom",
-  "version": "0.2.4",
+  "version": "0.3.1",
   "description": "Traloom - AI 辅助图书翻译工作台",
   "main": "out/main/index.js",
   "author": "",
