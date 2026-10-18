@@ -9,6 +9,10 @@ Download the PDFs from the [Traloom 0.3.1 preview release](https://github.com/ba
 
 下载后，在 Traloom 中点击“新建项目”并选择 PDF。程序会在 PDF 旁生成新的 `.twproj` 工程，不覆盖 PDF。建议将示例放在单独的练习文件夹内。
 
+两份示例均为英语资料，用于体验英语文字层提取与图像文字 OCR，不是日文识别样本。Traloom 的内置离线识别支持英语横排、日文横排和日文竖排；新增日文支持不影响原有英语支持。默认识别设置为英语横排。
+
+Both demos are in English, for English text extraction and image-text OCR practice. They are not Japanese OCR samples. Traloom bundles horizontal English OCR (the default), horizontal Japanese OCR, and vertical Japanese OCR.
+
 The PDFs contain selectable English text, accented names, complex illustrated layouts, a rotated diagram, and seven handwritten image-only notes for manual OCR practice. The single-page edition clips content at the gutter; use the spread edition for text spanning both pages.
 
 These are original AI-assisted demonstration materials created for Traloom, not real publications. They do not claim a real publisher, ISBN, author endorsement, or veterinary authority. Content is simplified for software testing and is not veterinary advice or a publication-ready scientific reference. Review it before any other public use. The software's MIT license does not automatically license PDF content or third-party fonts.

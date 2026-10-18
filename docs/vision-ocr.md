@@ -4,6 +4,15 @@ AI vision OCR is opt-in and separate from offline OCR. Assign an image-capable
 model in Settings > model assignments. The software cannot infer capability
 from a model name; use the generated test image before sending manuscript images.
 
+Bundled offline OCR supports horizontal printed English (`eng`, the default),
+horizontal printed Japanese (`jpn`), and vertical printed Japanese (`jpn_vert`).
+AI vision recognition is not restricted to these offline model choices: support
+for English, Japanese, or another language depends on the configured image-capable
+model. It does not guarantee recognition of every language. Vision requests upload
+images and may incur provider fees; bundled OCR runs locally without API charges.
+Source-recognition support does not change the current Simplified Chinese
+translation target.
+
 - PDF region editing: AI vision recognition produces editable text for review.
   Confirm the region edit to save. Paragraph identity and translation are preserved.
 - Batch processing: choose AI vision recognition and a range or a small trial.

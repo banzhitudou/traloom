@@ -18,6 +18,19 @@ Built for translating books, magazines, illustrated publications, and technical 
 
 Start with just a PDF. You do not need to prepare a termbase, extracted text, or supporting documents first. A project file is created next to the PDF without overwriting it. Add terminology as you work, and configure AI later if you need it.
 
+## English and Japanese: Recognition Support
+
+**Traloom is not Japanese-only. Bundled offline OCR supports both English and Japanese. Horizontal English remains the default.**
+
+| Recognition method | Current scope | Model service required? |
+| --- | --- | --- |
+| Bundled English OCR | Horizontal printed English, using `eng`; the default option | No, runs locally |
+| Bundled Japanese OCR | Horizontal printed Japanese with `jpn`, or vertical Japanese with `jpn_vert`; select the matching direction | No, runs locally |
+| PDF text-layer extraction | Reads existing PDF text rather than performing OCR; depends on font encoding, text-layer quality, and layout | No, runs locally |
+| AI vision recognition (experimental) | English, Japanese, and other language support depends on the configured image-capable model; no universal language or accuracy guarantee | Yes, uploads selected images and may incur fees |
+
+Local OCR models for other scanned languages are not bundled. Page rotation is not vertical-English OCR support. Mixed Japanese layouts, ruby text, handwriting, and blurry scans need review. These are **source-recognition capabilities**, not interface or translation-language settings: the interface is mainly Simplified Chinese, and AI translation currently targets Simplified Chinese.
+
 ## More Than Generating a Translation
 
 ### Translate with the original page in view
