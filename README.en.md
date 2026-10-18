@@ -10,6 +10,10 @@ Built for translating books, magazines, illustrated publications, and technical 
 
 [Download Mac preview](https://github.com/banzhitudou/traloom/releases) · [Try a demo PDF](docs/demo-pdfs.md) · [Features](#more-than-generating-a-translation) · [Run from source](#run-from-source) · [Report an issue](https://github.com/banzhitudou/traloom/issues)
 
+![Actual Traloom workspace: source text, Chinese translation and an existing AI reference on the left, with the corresponding cat-demo PDF region on the right](docs/screenshots/workbench.png)
+
+*Translate with the original page in view. The real interface is in Simplified Chinese; the source is the public English cat demo. The translation is demonstration content, not a publication-ready manuscript.*
+
 > Early development. This page describes the current source tree; published installers may not include every feature yet. Primarily verified on Apple Silicon macOS. The interface is mainly Simplified Chinese, and translation output currently targets Simplified Chinese. AI vision recognition and whole-page segmentation are experimental.
 
 ## One PDF, One Connected Workflow
@@ -68,6 +72,10 @@ Run line-break cleanup and draft translation independently from **Project → Ba
 
 Trials call your model provider and may cost money. Line-break cleanup works within paragraphs; it does not merge or reorder the book's paragraphs.
 
+![Actual batch settings: a paragraph range in the cat demo, eligible and skipped counts, and a model-cost notice](docs/screenshots/batch-processing.png)
+
+*Choose a range and a sample size before starting. This screenshot shows configuration only: no task was run and no model request was made for the capture.*
+
 ### Keep terminology consistent without flattening every exception
 
 Find places that may need attention after a book has already been translated, not just while writing its first draft.
@@ -95,6 +103,10 @@ Everyday translation edits are saved automatically. Keep paragraph notes, projec
 - Alternating source and Chinese paragraphs in bilingual paragraph output.
 - A locator column for paragraph IDs and book pages in table output.
 - Page-range export, optional notes, a delivery version number, and project details such as book titles and translator name when supplied.
+
+![Actual DOCX export settings: table or paragraph layout, optional notes and review states, and a PDF page range](docs/screenshots/docx-export.png)
+
+*Hand off just one page when that is all you need. This screenshot shows DOCX options; HTML is a separate export format.*
 
 **HTML for page-based review and layout handoff**
 
